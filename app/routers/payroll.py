@@ -236,6 +236,38 @@ def process_payroll_batch(
 
 
 @router.post(
+    "/runs/{run_id}/reset",
+    response_model=PayrollRunResponse,
+    summary="Reset a payroll run to DRAFT and delete its payslips (admin only)",
+)
+def reset_payroll_run(run_id: int, db: Session = Depends(get_db)):
+    """Reset a payroll run to DRAFT and remove all payslips for reprocessing."""
+    from app.models.payroll import Payslip, PayslipLine
+
+    payroll_run = db.query(PayrollRun).filter(PayrollRun.id == run_id).first()
+    if not payroll_run:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NotFound", "message": f"Payroll run {run_id} not found"},
+        )
+
+    # Delete lines first due to FK constraint
+    payslip_ids = db.query(Payslip.id).filter(Payslip.payroll_run_id == run_id).subquery()
+    db.query(PayslipLine).filter(PayslipLine.payslip_id.in_(payslip_ids)).delete(synchronize_session=False)
+    db.query(Payslip).filter(Payslip.payroll_run_id == run_id).delete(synchronize_session=False)
+
+    payroll_run.status = "DRAFT"
+    payroll_run.total_employees = 0
+    payroll_run.total_gross = 0
+    payroll_run.total_deductions = 0
+    payroll_run.total_tax = 0
+    payroll_run.total_net = 0
+    db.commit()
+    db.refresh(payroll_run)
+    return payroll_run
+
+
+@router.post(
     "/runs/{run_id}/approve",
     response_model=PayrollRunResponse,
     summary="Approve a completed payroll run",
