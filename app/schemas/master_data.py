@@ -89,3 +89,27 @@ class EmploymentStatusResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── Working Days Configuration ───────────────────────────────────────────────
+
+class WorkingDaysConfigCreate(BaseModel):
+    company_id: int = 1
+    year: int
+    month: int
+    working_days: int
+
+
+class WorkingDaysConfigUpdate(BaseModel):
+    working_days: int
+
+
+class WorkingDaysConfigResponse(BaseModel):
+    id: int
+    company_id: int
+    year: int
+    month: int
+    working_days: int
+
+    class Config:
+        from_attributes = True

@@ -7,6 +7,7 @@ Tables:
 - attendance_records: Daily attendance tracking
 - overtime_records: Overtime work records
 - overtime_settings: Company-level overtime configuration
+- attendance_working_days_configs: Monthly working days configuration per company
 """
 
 from sqlalchemy import (
@@ -130,4 +131,26 @@ class OvertimeSetting(Base, TimestampMixin):
             "work_week_type IN ('5_DAY', '6_DAY')",
             name="ck_overtime_settings_work_week_type",
         ),
+    )
+
+
+class AttendanceWorkingDaysConfig(Base, TimestampMixin):
+    """Monthly working days configuration per company.
+
+    Allows admins to override the default weekday-based calculation
+    to account for government-declared holidays.
+    """
+
+    __tablename__ = "attendance_working_days_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    working_days = Column(Integer, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("month >= 1 AND month <= 12", name="ck_awdc_month"),
+        CheckConstraint("working_days >= 0 AND working_days <= 31", name="ck_awdc_working_days"),
+        UniqueConstraint("company_id", "year", "month", name="uq_awdc_company_year_month"),
     )

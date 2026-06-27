@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.attendance import AttendanceRecord, OvertimeRecord
+from app.models.attendance import AttendanceRecord, AttendanceWorkingDaysConfig, OvertimeRecord
 from app.models.employee import Employee
 from app.schemas.attendance import (
     AttendanceRecordCreate,
@@ -137,12 +137,25 @@ def attendance_summary(
     period_start = date(year, month, 1)
     period_end = date(year, month, last_day)
 
-    # Count weekdays in the month as total working days
-    total_working_days = 0
-    for day in range(1, last_day + 1):
-        weekday = date(year, month, day).weekday()
-        if weekday < 5:  # Monday=0 ... Friday=4
-            total_working_days += 1
+    # Prefer admin-configured working days; fall back to weekdays count
+    config = (
+        db.query(AttendanceWorkingDaysConfig)
+        .filter(
+            AttendanceWorkingDaysConfig.company_id == company_id,
+            AttendanceWorkingDaysConfig.year == year,
+            AttendanceWorkingDaysConfig.month == month,
+        )
+        .first()
+    )
+    if config:
+        total_working_days = config.working_days
+    else:
+        # Count weekdays in the month as default working days
+        total_working_days = 0
+        for day in range(1, last_day + 1):
+            weekday = date(year, month, day).weekday()
+            if weekday < 5:  # Monday=0 ... Friday=4
+                total_working_days += 1
 
     records = (
         db.query(AttendanceRecord)

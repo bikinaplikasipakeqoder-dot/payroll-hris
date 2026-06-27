@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin, Cog } from 'lucide-react';
+import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin, Cog, CalendarDays } from 'lucide-react';
 
 const settingsLinks = [
   {
@@ -83,6 +83,14 @@ const settingsLinks = [
     icon: Cog,
     color: 'text-slate-600',
     bgColor: 'bg-slate-50',
+  },
+  {
+    title: 'Hari Kerja',
+    description: 'Atur jumlah hari kerja per bulan untuk perhitungan kehadiran',
+    href: '/settings/working-days',
+    icon: CalendarDays,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
   },
 ];
 

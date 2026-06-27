@@ -25,7 +25,10 @@ from app.models.tax import TaxSetting, PtkpValue, TaxBracketPasal17, TerBracket
 from app.models.bpjs import BpjsSetting
 
 # Attendance & Overtime
-from app.models.attendance import Shift, EmployeeShiftAssignment, AttendanceRecord, OvertimeRecord, OvertimeSetting
+from app.models.attendance import (
+    Shift, EmployeeShiftAssignment, AttendanceRecord, OvertimeRecord, OvertimeSetting,
+    AttendanceWorkingDaysConfig,
+)
 
 # Leave
 from app.models.leave import LeaveType, EmployeeLeaveBalance, LeaveRequest
@@ -67,6 +70,7 @@ __all__ = [
     "BpjsSetting",
     # Attendance & Overtime
     "Shift", "EmployeeShiftAssignment", "AttendanceRecord", "OvertimeRecord", "OvertimeSetting",
+    "AttendanceWorkingDaysConfig",
     # Leave
     "LeaveType", "EmployeeLeaveBalance", "LeaveRequest",
     # Kasbon

@@ -12,11 +12,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.employee import Department, Position, EmploymentStatus, Employee
 from app.models.salary import Grade
+from app.models.attendance import AttendanceWorkingDaysConfig
 from app.schemas.master_data import (
     DepartmentCreate, DepartmentUpdate, DepartmentResponse,
     PositionCreate, PositionUpdate, PositionResponse,
     GradeCreate, GradeUpdate, GradeResponse,
     EmploymentStatusCreate, EmploymentStatusUpdate, EmploymentStatusResponse,
+    WorkingDaysConfigCreate, WorkingDaysConfigUpdate, WorkingDaysConfigResponse,
 )
 
 router = APIRouter(prefix="/master-data", tags=["Master Data"])
@@ -284,3 +286,86 @@ def delete_employment_status(status_id: int, db: Session = Depends(get_db)):
     db.delete(emp_status)
     db.commit()
     return {"message": "Employment status deleted"}
+
+
+# ─── Working Days Configuration Endpoints ────────────────────────────────────
+
+@router.get("/working-days", response_model=List[WorkingDaysConfigResponse], summary="List working days configurations")
+def list_working_days(
+    company_id: int = Query(..., description="Company ID"),
+    year: Optional[int] = Query(None, description="Filter by year"),
+    db: Session = Depends(get_db),
+):
+    """List monthly working days configurations for a company."""
+    query = db.query(AttendanceWorkingDaysConfig).filter(
+        AttendanceWorkingDaysConfig.company_id == company_id
+    )
+    if year is not None:
+        query = query.filter(AttendanceWorkingDaysConfig.year == year)
+    return query.order_by(AttendanceWorkingDaysConfig.year.desc(), AttendanceWorkingDaysConfig.month.asc()).all()
+
+
+@router.post(
+    "/working-days",
+    response_model=WorkingDaysConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create or update working days configuration",
+)
+def create_or_update_working_days(payload: WorkingDaysConfigCreate, db: Session = Depends(get_db)):
+    """Create or update monthly working days for a company.
+
+    If a configuration for the same company/year/month already exists, it is updated.
+    """
+    config = (
+        db.query(AttendanceWorkingDaysConfig)
+        .filter(
+            AttendanceWorkingDaysConfig.company_id == payload.company_id,
+            AttendanceWorkingDaysConfig.year == payload.year,
+            AttendanceWorkingDaysConfig.month == payload.month,
+        )
+        .first()
+    )
+
+    if config:
+        config.working_days = payload.working_days
+    else:
+        config = AttendanceWorkingDaysConfig(
+            company_id=payload.company_id,
+            year=payload.year,
+            month=payload.month,
+            working_days=payload.working_days,
+        )
+        db.add(config)
+
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+@router.patch("/working-days/{config_id}", response_model=WorkingDaysConfigResponse, summary="Update working days configuration")
+def update_working_days(config_id: int, payload: WorkingDaysConfigUpdate, db: Session = Depends(get_db)):
+    """Partially update a working days configuration."""
+    config = db.query(AttendanceWorkingDaysConfig).filter(AttendanceWorkingDaysConfig.id == config_id).first()
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NotFound", "message": f"Working days configuration {config_id} not found"},
+        )
+    config.working_days = payload.working_days
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+@router.delete("/working-days/{config_id}", status_code=status.HTTP_200_OK, summary="Delete working days configuration")
+def delete_working_days(config_id: int, db: Session = Depends(get_db)):
+    """Delete a working days configuration."""
+    config = db.query(AttendanceWorkingDaysConfig).filter(AttendanceWorkingDaysConfig.id == config_id).first()
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NotFound", "message": f"Working days configuration {config_id} not found"},
+        )
+    db.delete(config)
+    db.commit()
+    return {"message": "Working days configuration deleted"}
