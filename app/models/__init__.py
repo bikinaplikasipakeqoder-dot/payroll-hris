@@ -36,6 +36,9 @@ from app.models.kasbon import KasbonRequest, KasbonInstallment
 # Bonus & Reimbursement
 from app.models.bonus import BonusType, Bonus, THRRecord, ReimbursementType, Reimbursement
 
+# Rules Engine
+from app.models.rules import RuleCategory, RuleConfiguration, RuleVariable, RuleAuditLog
+
 # Payroll
 from app.models.payroll import PayrollRun, Payslip, PayslipLine, PayslipTemplate, PayslipRecord, PayslipGenerationJob
 
@@ -70,6 +73,8 @@ __all__ = [
     "KasbonRequest", "KasbonInstallment",
     # Bonus & Reimbursement
     "BonusType", "Bonus", "THRRecord", "ReimbursementType", "Reimbursement",
+    # Rules Engine
+    "RuleCategory", "RuleConfiguration", "RuleVariable", "RuleAuditLog",
     # Payroll
     "PayrollRun", "Payslip", "PayslipLine",
     "PayslipTemplate", "PayslipRecord", "PayslipGenerationJob",

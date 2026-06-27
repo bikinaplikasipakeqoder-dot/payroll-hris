@@ -21,7 +21,7 @@ from app.models import (
     Company, Role, Permission, RolePermission,
     PtkpValue, TaxBracketPasal17, BpjsSetting,
     OvertimeSetting, Language, LeaveType, TaxSetting,
-    Entity, UmpSetting,
+    Entity, UmpSetting, RuleCategory, RuleVariable,
 )
 
 
@@ -66,6 +66,10 @@ def seed_all(db_session):
 
     # 13. Default UMP Settings
     _seed_ump_settings(db_session)
+
+    # 14. Rules Engine defaults
+    _seed_rule_categories(db_session)
+    _seed_rule_variables(db_session)
 
     print("[SEED] All seed data completed successfully.")
 
@@ -457,6 +461,64 @@ def _seed_default_entity(db_session):
     db_session.add(entity)
     db_session.commit()
     print("[SEED] Default entity seeded (HQ).")
+
+
+def _seed_rule_categories(db_session):
+    """Seed default rule categories."""
+    categories = [
+        ("BPJS", "BPJS Configuration", "Rates and ceilings for BPJS Kesehatan, JHT, JP, JKK, JKM"),
+        ("PPH21", "PPh 21 Configuration", "Tax brackets, TER brackets, and PTKP values"),
+        ("OVERTIME", "Overtime Configuration", "Overtime multipliers and hourly divisor"),
+        ("ALLOWANCE", "Allowance Configuration", "Formula-based allowance calculation rules"),
+    ]
+    existing = db_session.query(RuleCategory).filter(
+        RuleCategory.category_code.in_([c[0] for c in categories])
+    ).count()
+    if existing >= len(categories):
+        print("[SEED] Rule categories already exist, skipping.")
+        return
+
+    for code, name, description in categories:
+        if not db_session.query(RuleCategory).filter_by(category_code=code).first():
+            db_session.add(RuleCategory(
+                category_code=code,
+                category_name=name,
+                description=description,
+                is_active=True,
+            ))
+    db_session.commit()
+    print(f"[SEED] Rule categories seeded ({len(categories)} categories).")
+
+
+def _seed_rule_variables(db_session):
+    """Seed default rule variables."""
+    variables = [
+        ("basic_salary", "Basic Salary", "EMPLOYEE_FIELD", "employees", "base_salary", "Employee base salary"),
+        ("ptkp_status", "PTKP Status", "EMPLOYEE_FIELD", "employees", "ptkp_status", "Employee PTKP status"),
+        ("ptkp_value", "PTKP Value", "CALCULATED", None, None, "Annual PTKP threshold based on ptkp_status"),
+        ("bpjs_base", "BPJS Base", "CALCULATED", None, None, "BPJS calculation base (salary + eligible allowances)"),
+        ("monthly_gross", "Monthly Gross Income", "CALCULATED", None, None, "Total monthly gross income"),
+    ]
+    existing = db_session.query(RuleVariable).filter(
+        RuleVariable.variable_code.in_([v[0] for v in variables])
+    ).count()
+    if existing >= len(variables):
+        print("[SEED] Rule variables already exist, skipping.")
+        return
+
+    for code, name, vtype, table, field, description in variables:
+        if not db_session.query(RuleVariable).filter_by(variable_code=code).first():
+            db_session.add(RuleVariable(
+                variable_code=code,
+                variable_name=name,
+                variable_type=vtype,
+                source_table=table,
+                source_field=field,
+                description=description,
+                is_active=True,
+            ))
+    db_session.commit()
+    print(f"[SEED] Rule variables seeded ({len(variables)} variables).")
 
 
 def _seed_ump_settings(db_session):

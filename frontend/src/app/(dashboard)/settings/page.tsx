@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin } from 'lucide-react';
+import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin, Cog } from 'lucide-react';
 
 const settingsLinks = [
   {
@@ -75,6 +75,14 @@ const settingsLinks = [
     icon: MapPin,
     color: 'text-teal-600',
     bgColor: 'bg-teal-50',
+  },
+  {
+    title: 'Rules Engine',
+    description: 'Aturan kustom untuk perhitungan pajak, BPJS, lembur, dan tunjangan',
+    href: '/settings/rules',
+    icon: Cog,
+    color: 'text-slate-600',
+    bgColor: 'bg-slate-50',
   },
 ];
 

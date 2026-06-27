@@ -132,3 +132,50 @@ export interface DashboardStats {
   pendingOvertimeApprovals: number;
   totalPayrollThisMonth: number;
 }
+
+export interface RuleCategory {
+  id: number;
+  category_code: string;
+  category_name: string;
+  description: string | null;
+  is_active: boolean;
+}
+
+export type RuleType = 'FORMULA' | 'CONSTANT' | 'BRACKET' | 'LOOKUP_TABLE';
+
+export interface RuleConfiguration {
+  id: number;
+  company_id: number;
+  category_id: number;
+  category_code: string;
+  category_name: string;
+  rule_code: string;
+  rule_name: string;
+  rule_type: RuleType;
+  formula: string | null;
+  value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+  rate: number | null;
+  effective_date: string;
+  expiry_date: string | null;
+  priority: number;
+  is_active: boolean;
+  description: string | null;
+  created_by: number | null;
+  updated_by: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface RuleAuditLog {
+  id: number;
+  rule_id: number;
+  action: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: number;
+  changed_by_name: string | null;
+  changed_at: string;
+  reason: string | null;
+}
