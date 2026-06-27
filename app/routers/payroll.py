@@ -111,7 +111,7 @@ def create_payroll_run(
 def list_payroll_runs(
     company_id: int = Query(..., description="Company ID"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
     """List payroll runs filtered by company, with pagination."""
@@ -219,7 +219,7 @@ def approve_payroll_run(
 def list_payslips_for_run(
     run_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
     """List all payslips belonging to a specific payroll run."""

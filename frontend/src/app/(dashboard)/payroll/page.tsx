@@ -366,7 +366,11 @@ export default function PayrollPage() {
                             disabled={processing === run.id}
                             className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                           >
-                            <Play className="w-4 h-4" />
+                            {processing === run.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Play className="w-4 h-4" />
+                            )}
                           </button>
                         )}
                         {run.status === 'COMPLETED' && (
