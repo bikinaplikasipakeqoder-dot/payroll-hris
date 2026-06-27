@@ -27,10 +27,11 @@ class KasbonCreate(BaseSchema):
     employee_id: int
     kasbon_number: str
     principal_amount: Decimal
+    interest_rate: Decimal = Decimal("0.00")
     purpose: str
     request_date: date
     number_of_installments: int
-    installment_amount: Decimal
+    installment_amount: Optional[Decimal] = None
     notes: Optional[str] = None
 
 
@@ -38,6 +39,7 @@ class KasbonUpdate(BaseSchema):
     """Request schema for updating a kasbon request."""
 
     principal_amount: Optional[Decimal] = None
+    interest_rate: Optional[Decimal] = None
     purpose: Optional[str] = None
     request_date: Optional[date] = None
     number_of_installments: Optional[int] = None
@@ -64,6 +66,9 @@ class KasbonResponse(BaseSchema):
     employee_name: str
     kasbon_number: str
     principal_amount: Decimal
+    interest_rate: Decimal
+    total_amount: Decimal
+    interest_amount: Decimal
     purpose: str
     request_date: date
     approval_date: Optional[date] = None

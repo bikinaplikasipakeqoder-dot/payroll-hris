@@ -43,6 +43,9 @@ interface Kasbon {
   employee_name: string;
   kasbon_number: string;
   principal_amount: string;
+  interest_rate: string;
+  interest_amount: string;
+  total_amount: string;
   purpose: string;
   request_date: string;
   approval_date: string | null;
@@ -61,6 +64,7 @@ interface KasbonFormData {
   employee_id: string;
   kasbon_number: string;
   principal_amount: string;
+  interest_rate: string;
   purpose: string;
   request_date: string;
   number_of_installments: string;
@@ -72,6 +76,7 @@ const EMPTY_KASBON_FORM: KasbonFormData = {
   employee_id: '',
   kasbon_number: '',
   principal_amount: '',
+  interest_rate: '0',
   purpose: '',
   request_date: '',
   number_of_installments: '1',
@@ -132,12 +137,15 @@ export default function KasbonPage() {
 
   const recalcInstallment = (
     principal: string,
+    interestRate: string,
     installments: string
   ): string => {
     const p = Number(principal) || 0;
+    const rate = Number(interestRate) || 0;
     const n = Number(installments) || 1;
     if (n <= 0) return '';
-    return String(Math.round(p / n));
+    const total = p * (1 + rate / 100);
+    return String(Math.round(total / n));
   };
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
@@ -159,6 +167,7 @@ export default function KasbonPage() {
       employee_id: String(item.employee_id),
       kasbon_number: item.kasbon_number,
       principal_amount: item.principal_amount,
+      interest_rate: item.interest_rate || '0',
       purpose: item.purpose,
       request_date: item.request_date,
       number_of_installments: String(item.number_of_installments),
@@ -177,6 +186,7 @@ export default function KasbonPage() {
         employee_id: Number(form.employee_id),
         kasbon_number: form.kasbon_number,
         principal_amount: Number(form.principal_amount),
+        interest_rate: Number(form.interest_rate),
         purpose: form.purpose,
         request_date: form.request_date,
         number_of_installments: Number(form.number_of_installments),
@@ -308,6 +318,8 @@ export default function KasbonPage() {
                   <th className="text-left py-3 px-4 font-medium text-gray-500">No. Pinjaman</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Karyawan</th>
                   <th className="text-right py-3 px-4 font-medium text-gray-500">Pinjaman Pokok</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-500">Bunga</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-500">Total Pinjaman</th>
                   <th className="text-right py-3 px-4 font-medium text-gray-500">Cicilan/Bulan</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Tenor</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
@@ -318,7 +330,7 @@ export default function KasbonPage() {
               <tbody className="divide-y divide-gray-100">
                 {kasbonList.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-gray-500">
+                    <td colSpan={10} className="text-center py-12 text-gray-500">
                       Belum ada data pinjaman.
                     </td>
                   </tr>
@@ -328,6 +340,8 @@ export default function KasbonPage() {
                       <td className="py-3 px-4 font-mono text-gray-900">{item.kasbon_number}</td>
                       <td className="py-3 px-4 text-gray-900">{item.employee_name}</td>
                       <td className="py-3 px-4 text-right font-mono">{formatIDR(Number(item.principal_amount))}</td>
+                      <td className="py-3 px-4 text-right font-mono text-blue-600">{Number(item.interest_rate || 0).toFixed(2)}%</td>
+                      <td className="py-3 px-4 text-right font-mono">{formatIDR(Number(item.total_amount))}</td>
                       <td className="py-3 px-4 text-right font-mono">{formatIDR(Number(item.installment_amount))}</td>
                       <td className="py-3 px-4 text-gray-600">{item.number_of_installments}x</td>
                       <td className="py-3 px-4">
@@ -463,7 +477,7 @@ export default function KasbonPage() {
                   value={form.principal_amount}
                   onChange={(e) => {
                     const principal = e.target.value;
-                    const installment = recalcInstallment(principal, form.number_of_installments);
+                    const installment = recalcInstallment(principal, form.interest_rate, form.number_of_installments);
                     setForm({ ...form, principal_amount: principal, installment_amount: installment });
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -473,6 +487,21 @@ export default function KasbonPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bunga (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.interest_rate}
+                    onChange={(e) => {
+                      const rate = e.target.value;
+                      const installment = recalcInstallment(form.principal_amount, rate, form.number_of_installments);
+                      setForm({ ...form, interest_rate: rate, installment_amount: installment });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tenor (bulan)</label>
                   <input
                     type="number"
@@ -480,21 +509,22 @@ export default function KasbonPage() {
                     value={form.number_of_installments}
                     onChange={(e) => {
                       const installments = e.target.value;
-                      const installment = recalcInstallment(form.principal_amount, installments);
+                      const installment = recalcInstallment(form.principal_amount, form.interest_rate, installments);
                       setForm({ ...form, number_of_installments: installments, installment_amount: installment });
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cicilan/Bulan</label>
-                  <input
-                    type="number"
-                    value={form.installment_amount}
-                    onChange={(e) => setForm({ ...form, installment_amount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cicilan/Bulan</label>
+                <input
+                  type="number"
+                  value={form.installment_amount}
+                  onChange={(e) => setForm({ ...form, installment_amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
               </div>
 
               <div>
@@ -579,6 +609,14 @@ export default function KasbonPage() {
               <div>
                 <p className="text-xs text-gray-500">Pinjaman Pokok</p>
                 <p className="text-sm font-medium text-gray-900">{formatIDR(Number(detailKasbon.principal_amount))}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Bunga</p>
+                <p className="text-sm font-medium text-gray-900">{Number(detailKasbon.interest_rate || 0).toFixed(2)}%</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Total Pinjaman</p>
+                <p className="text-sm font-medium text-gray-900">{formatIDR(Number(detailKasbon.total_amount))}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Cicilan/Bulan</p>

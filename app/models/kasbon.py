@@ -6,6 +6,8 @@ Tables:
 - kasbon_installments: Installment schedule and payment tracking
 """
 
+from decimal import Decimal
+
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Date, Text, Numeric,
     ForeignKey, Index, UniqueConstraint, CheckConstraint,
@@ -24,6 +26,7 @@ class KasbonRequest(Base, TimestampMixin):
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
     kasbon_number = Column(String(50), unique=True, nullable=False)
     principal_amount = Column(Numeric(15, 2), nullable=False)
+    interest_rate = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
     purpose = Column(Text, nullable=False)
     request_date = Column(Date, nullable=False)
     approval_date = Column(Date, nullable=True)

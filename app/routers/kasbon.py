@@ -24,12 +24,31 @@ router = APIRouter(prefix="/kasbon", tags=["Kasbon Management"])
 VALID_STATUS = {"PENDING", "APPROVED", "DISBURSED", "COMPLETED", "REJECTED"}
 
 
+def _total_amount(kasbon: KasbonRequest) -> Decimal:
+    """Total loan amount = principal + interest."""
+    rate = kasbon.interest_rate or Decimal("0")
+    return kasbon.principal_amount * (Decimal("1") + rate / Decimal("100"))
+
+
+def _interest_amount(kasbon: KasbonRequest) -> Decimal:
+    """Interest portion of the loan."""
+    rate = kasbon.interest_rate or Decimal("0")
+    return kasbon.principal_amount * rate / Decimal("100")
+
+
+def _calculate_installment_amount(kasbon: KasbonRequest) -> Decimal:
+    """Monthly installment based on total amount and number of installments."""
+    total = _total_amount(kasbon)
+    n = kasbon.number_of_installments
+    if n <= 0:
+        return Decimal("0")
+    return (total / Decimal(n)).quantize(Decimal("0.01"))
+
+
 def _generate_installments(kasbon: KasbonRequest) -> None:
     """Generate installment schedule when a kasbon is disbursed."""
-    # Clear any existing installments to allow regeneration
-    for inst in kasbon.installments:
-        if not inst.is_paid:
-            inst.payroll_run_id = None
+    # Ensure installment amount reflects latest total amount
+    kasbon.installment_amount = _calculate_installment_amount(kasbon)
 
     # Use disbursement_date as the base due date; if not set, use request_date
     base_date = kasbon.disbursement_date or kasbon.request_date
@@ -79,7 +98,8 @@ def _build_kasbon_response(db: Session, kasbon: KasbonRequest) -> KasbonResponse
     total_paid = sum(
         inst.amount for inst in kasbon.installments if inst.is_paid
     )
-    remaining_balance = kasbon.principal_amount - total_paid
+    total_amount = _total_amount(kasbon)
+    remaining_balance = total_amount - total_paid
 
     return KasbonResponse(
         id=kasbon.id,
@@ -91,12 +111,15 @@ def _build_kasbon_response(db: Session, kasbon: KasbonRequest) -> KasbonResponse
         ),
         kasbon_number=kasbon.kasbon_number,
         principal_amount=kasbon.principal_amount,
+        interest_rate=kasbon.interest_rate or Decimal("0"),
+        total_amount=total_amount,
+        interest_amount=_interest_amount(kasbon),
         purpose=kasbon.purpose,
         request_date=kasbon.request_date,
         approval_date=kasbon.approval_date,
         disbursement_date=kasbon.disbursement_date,
         number_of_installments=kasbon.number_of_installments,
-        installment_amount=kasbon.installment_amount,
+        installment_amount=kasbon.installment_amount or _calculate_installment_amount(kasbon),
         status=kasbon.status,
         approved_by=kasbon.approved_by,
         notes=kasbon.notes,
@@ -166,34 +189,21 @@ def create_kasbon(payload: KasbonCreate, db: Session = Depends(get_db)):
             },
         )
 
-    # Validate installment consistency
-    expected = payload.principal_amount / Decimal(payload.number_of_installments)
-    if payload.installment_amount != expected:
-        # Allow rounding differences up to 1 unit of currency
-        diff = abs(payload.installment_amount - expected)
-        if diff > Decimal("1"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "error": "InvalidValue",
-                    "message": (
-                        f"Installment amount should be approximately "
-                        f"Rp {expected:,.0f} for {payload.number_of_installments} installments"
-                    ),
-                },
-            )
-
     kasbon = KasbonRequest(
         employee_id=payload.employee_id,
         kasbon_number=payload.kasbon_number,
         principal_amount=payload.principal_amount,
+        interest_rate=payload.interest_rate,
         purpose=payload.purpose,
         request_date=payload.request_date,
         number_of_installments=payload.number_of_installments,
-        installment_amount=payload.installment_amount,
+        installment_amount=payload.installment_amount or Decimal("0"),
         status="PENDING",
         notes=payload.notes,
     )
+
+    # Auto-calculate installment amount from principal + interest
+    kasbon.installment_amount = _calculate_installment_amount(kasbon)
     db.add(kasbon)
     db.commit()
     db.refresh(kasbon)
@@ -261,6 +271,9 @@ def update_kasbon(
 
     for field, value in update_data.items():
         setattr(kasbon, field, value)
+
+    # Recalculate installment amount if principal/interest/tenor changed
+    kasbon.installment_amount = _calculate_installment_amount(kasbon)
 
     db.commit()
     db.refresh(kasbon)
