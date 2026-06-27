@@ -3,7 +3,7 @@ Attendance and Overtime API endpoints.
 """
 
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from app.models.employee import Employee
 from app.schemas.attendance import (
     AttendanceRecordCreate,
     AttendanceRecordResponse,
+    AttendanceSummaryResponse,
     OvertimeApprovalRequest,
     OvertimeRecordCreate,
     OvertimeRecordResponse,
@@ -107,6 +108,101 @@ def list_attendance(
         .all()
     )
     return records
+
+
+@router.get(
+    "/summary",
+    response_model=List[AttendanceSummaryResponse],
+    summary="Monthly attendance summary by employee",
+)
+def attendance_summary(
+    company_id: int = Query(..., description="Company ID"),
+    month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
+    year: int = Query(..., ge=2000, le=2100, description="Year"),
+    db: Session = Depends(get_db),
+):
+    """Return monthly attendance summary per active employee.
+
+    Total working days are calculated as weekdays (Mon-Fri) in the month.
+    """
+    from calendar import monthrange
+
+    employees = (
+        db.query(Employee.id, Employee.employee_code, Employee.full_name)
+        .filter(Employee.company_id == company_id, Employee.is_active == True)
+        .all()
+    )
+
+    _, last_day = monthrange(year, month)
+    period_start = date(year, month, 1)
+    period_end = date(year, month, last_day)
+
+    # Count weekdays in the month as total working days
+    total_working_days = 0
+    for day in range(1, last_day + 1):
+        weekday = date(year, month, day).weekday()
+        if weekday < 5:  # Monday=0 ... Friday=4
+            total_working_days += 1
+
+    records = (
+        db.query(AttendanceRecord)
+        .filter(
+            AttendanceRecord.employee_id.in_([e.id for e in employees]),
+            AttendanceRecord.attendance_date >= period_start,
+            AttendanceRecord.attendance_date <= period_end,
+        )
+        .all()
+    )
+
+    # Group records by employee_id
+    grouped: Dict[int, List[AttendanceRecord]] = {}
+    for rec in records:
+        grouped.setdefault(rec.employee_id, []).append(rec)
+
+    result = []
+    for emp in employees:
+        emp_records = grouped.get(emp.id, [])
+        present_days = 0
+        absent_days = 0
+        sick_days = 0
+        leave_days = 0
+        permitted_days = 0
+        late_minutes = 0
+
+        for rec in emp_records:
+            if rec.status == "PRESENT":
+                present_days += 1
+                if rec.late_minutes:
+                    late_minutes += rec.late_minutes
+            elif rec.status == "ABSENT":
+                absent_days += 1
+            elif rec.status == "SICK":
+                sick_days += 1
+            elif rec.status == "LEAVE":
+                leave_days += 1
+            elif rec.status == "PERMITTED":
+                permitted_days += 1
+
+        attendance_days = present_days + leave_days + permitted_days + sick_days
+        percentage = (attendance_days / total_working_days * 100) if total_working_days > 0 else 0.0
+
+        result.append(
+            AttendanceSummaryResponse(
+                employee_id=emp.id,
+                employee_code=emp.employee_code,
+                employee_name=emp.full_name,
+                total_working_days=total_working_days,
+                present_days=present_days,
+                absent_days=absent_days,
+                sick_days=sick_days,
+                leave_days=leave_days,
+                permitted_days=permitted_days,
+                late_minutes=late_minutes,
+                attendance_percentage=round(percentage, 2),
+            )
+        )
+
+    return result
 
 
 @router.post(

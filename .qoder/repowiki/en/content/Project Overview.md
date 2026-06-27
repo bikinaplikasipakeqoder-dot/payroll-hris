@@ -5,7 +5,7 @@
 - [requirements.txt](file://requirements.txt)
 - [app/database.py](file://app/database.py)
 - [alembic/env.py](file://alembic/env.py)
-- [app/models/__init__.py](file://app/models/__init__.py)
+- [app/models/__init__.y](file://app/models/__init__.py)
 - [app/models/base.py](file://app/models/base.py)
 - [app/models/auth.py](file://app/models/auth.py)
 - [app/models/employee.py](file://app/models/employee.py)
@@ -19,833 +19,397 @@
 - [app/models/payroll.py](file://app/models/payroll.py)
 - [app/models/integration.py](file://app/models/integration.py)
 - [app/seed/seed_data.py](file://app/seed/seed_data.py)
+- [app/main.py](file://app/main.py)
+- [app/routers/ai.py](file://app/routers/ai.py)
+- [app/services/ai_proxy_service.py](file://app/services/ai_proxy_service.py)
+- [app/schemas/ai.py](file://app/schemas/ai.py)
+- [frontend/package.json](file://frontend/package.json)
+- [frontend/src/app/layout.tsx](file://frontend/src/app/layout.tsx)
+- [frontend/src/middleware.ts](file://frontend/src/middleware.ts)
+- [frontend/src/lib/api.ts](file://frontend/src/lib/api.ts)
+- [frontend/src/components/ai/AiSettingsForm.tsx](file://frontend/src/components/ai/AiSettingsForm.tsx)
+- [frontend/src/types/ai.ts](file://frontend/src/types/ai.ts)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Updated architecture to reflect FastAPI backend with Next.js frontend integration
+- Added comprehensive AI integration capabilities with OpenAI-compatible providers
+- Enhanced multi-tenant design with complete HRIS functionality
+- Updated technology stack to include modern frontend frameworks and AI services
+- Expanded system capabilities beyond traditional payroll to include intelligent automation
 
 ## Table of Contents
 1. [Introduction](#introduction)
-2. [Project Structure](#project-structure)
+2. [System Architecture](#system-architecture)
 3. [Core Components](#core-components)
-4. [Architecture Overview](#architecture-overview)
-5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+4. [Frontend Implementation](#frontend-implementation)
+5. [AI Integration](#ai-integration)
+6. [Multi-Tenant Design](#multi-tenant-design)
+7. [Regulatory Compliance](#regulatory-compliance)
+8. [Technology Stack](#technology-stack)
+9. [Practical Use Cases](#practical-use-cases)
+10. [Deployment Architecture](#deployment-architecture)
+11. [Conclusion](#conclusion)
 
 ## Introduction
-This Indonesian Payroll & HRIS system is a comprehensive backend solution designed to automate payroll processing, manage employee data, and ensure Indonesian tax and social security (BPJS) compliance. Built with FastAPI and SQLAlchemy, it provides a robust foundation for multi-tenant operations with strong data modeling, auditability, and extensibility. The system supports key HRIS workflows such as attendance tracking, leave management, bonuses/reimbursements, and structured payslip generation, while enforcing Indonesian regulations for tax computation (PPh Pasal 17 and TER), PTKP thresholds, and BPJS contribution settings.
+The Indonesian Payroll & HRIS system represents a comprehensive, enterprise-grade solution that has evolved from a traditional payroll backend to a modern, AI-integrated human resources management platform. Built with FastAPI as the backend foundation and Next.js as the frontend framework, the system provides automated payroll processing, intelligent HR insights, and advanced compliance management for Indonesian regulations.
 
-Target audience:
-- Payroll administrators and finance teams managing Indonesian payroll
-- HR professionals handling employee data, attendance, and leaves
-- System integrators building on top of the backend APIs
-- Auditors and compliance officers leveraging audit logs and standardized data
+The system serves as a complete HRIS (Human Resource Information System) solution that seamlessly integrates traditional payroll functions with cutting-edge artificial intelligence capabilities. It supports real-time employee management, automated payslip generation, attendance tracking, leave management, tax computation, and intelligent reporting powered by AI assistants.
 
-## Project Structure
-The project follows a layered, feature-oriented structure:
-- Application core: FastAPI application entry and routing live outside this repository snapshot; the backend logic is encapsulated in models, database configuration, and migrations.
-- Models: SQLAlchemy declarative models grouped by domain (authentication, employees, payroll, attendance, tax, BPJS, etc.) under app/models/.
-- Database: Centralized engine and session management with FastAPI dependency injection.
-- Migrations: Alembic configuration for schema versioning and batch-compatible SQLite operations.
-- Seed data: Initial dataset for Indonesian regulatory defaults (PTKP, tax brackets, BPJS, languages, leave types, etc.).
+**Target Audience:**
+- Indonesian companies seeking automated payroll and HR management
+- HR professionals requiring intelligent insights and compliance monitoring
+- Finance teams needing automated tax computation and reporting
+- System integrators building on top of modern APIs
+- Organizations requiring AI-powered HR assistance and analytics
+
+## System Architecture
+The system employs a modern microservices architecture with clear separation between backend APIs, intelligent AI services, and responsive frontend interfaces. The architecture supports horizontal scaling and provides robust tenant isolation for multi-company deployments.
 
 ```mermaid
 graph TB
-subgraph "Application Layer"
-API["FastAPI App<br/>Routes & Controllers"]
+subgraph "Frontend Layer"
+NEXTJS["Next.js Frontend<br/>React + TypeScript"]
+LAYOUT["App Layout & Routing"]
+COMPONENTS["UI Components<br/>Forms, Tables, Charts"]
+MIDDLEWARE["Authentication Middleware"]
 end
-subgraph "Domain Models"
-AUTH["Auth & Company"]
-EMP["Employee & Org"]
-SAL["Salary & Compensation"]
-TAX["Tax"]
-BPJS["BPJS"]
-ATT["Attendance & Overtime"]
-LEAVE["Leave"]
-KASBON["Kasbon"]
-BONUS["Bonus & Reimbursement"]
-PAY["Payroll"]
-INT["Integration & Localization"]
+subgraph "Backend Layer"
+FASTAPI["FastAPI Backend<br/>Python + ASGI"]
+MAIN["Main Application<br/>Router Registration"]
+Routers["API Routers<br/>Payroll, HR, AI"]
+SERVICES["Business Services<br/>AI Proxy, Payroll Logic"]
 end
-subgraph "Infrastructure"
-DB["SQLAlchemy Engine & Sessions"]
-ALEMBIC["Alembic Migrations"]
-SEED["Seed Data"]
+subgraph "Intelligence Layer"
+AI_SERVICE["AI Proxy Service<br/>OpenAI Compatible"]
+CONTEXT["Context Builder<br/>Payroll/HR Data"]
+PROMPTS["Dynamic Prompts<br/>Indonesian Regulations"]
 end
-API --> DB
-API --> AUTH
-API --> EMP
-API --> SAL
-API --> TAX
-API --> BPJS
-API --> ATT
-API --> LEAVE
-API --> KASBON
-API --> BONUS
-API --> PAY
-API --> INT
-DB --> ALEMBIC
-DB --> SEED
+subgraph "Data Layer"
+DATABASE["SQLAlchemy ORM<br/>PostgreSQL/LibSQL"]
+MODELS["Domain Models<br/>Multi-Tenant"]
+MIGRATIONS["Alembic Migrations<br/>Schema Versioning"]
+SEED["Seed Data<br/>Regulatory Defaults"]
+end
+subgraph "External Services"
+OPENAI["OpenAI/Anthropic<br/>AI Providers"]
+PDF["WeasyPrint<br/>PDF Generation"]
+EXCEL["Excel Import/Export<br/>Pandas Integration"]
+end
+NEXTJS --> FASTAPI
+LAYOUT --> NEXTJS
+COMPONENTS --> LAYOUT
+MIDDLEWARE --> LAYOUT
+FASTAPI --> MAIN
+MAIN --> Routers
+Routers --> SERVICES
+SERVICES --> AI_SERVICE
+AI_SERVICE --> CONTEXT
+AI_SERVICE --> PROMPTS
+AI_SERVICE --> OPENAI
+SERVICES --> DATABASE
+DATABASE --> MODELS
+MODELS --> MIGRATIONS
+MIGRATIONS --> SEED
+SERVICES --> PDF
+SERVICES --> EXCEL
 ```
 
 **Diagram sources**
-- [app/models/__init__.py:1-69](file://app/models/__init__.py#L1-L69)
-- [app/database.py:1-63](file://app/database.py#L1-L63)
-- [alembic/env.py:1-80](file://alembic/env.py#L1-L80)
-- [app/seed/seed_data.py:1-448](file://app/seed/seed_data.py#L1-L448)
-
-**Section sources**
-- [app/models/__init__.py:1-69](file://app/models/__init__.py#L1-L69)
-- [app/database.py:1-63](file://app/database.py#L1-L63)
-- [alembic/env.py:1-80](file://alembic/env.py#L1-L80)
-- [app/seed/seed_data.py:1-448](file://app/seed/seed_data.py#L1-L448)
+- [app/main.py:30-64](file://app/main.py#L30-L64)
+- [app/routers/ai.py:20](file://app/routers/ai.py#L20)
+- [app/services/ai_proxy_service.py:65-142](file://app/services/ai_proxy_service.py#L65-L142)
+- [frontend/src/app/layout.tsx:12-22](file://frontend/src/app/layout.tsx#L12-L22)
 
 ## Core Components
-- Authentication and company master data: Companies, users, roles, permissions, and RBAC mapping enable multi-tenant access control.
-- Employee and organizational structure: Departments, positions, employment statuses, and employee master data with demographic, tax, and bank details.
-- Salary and compensation: Employee grades, salary matrix, allowance types, and employee-specific allowances; deduction types.
-- Tax computation: Company-level tax settings, PTKP thresholds, PPh Pasal 17 progressive brackets, and TER brackets aligned with Indonesian regulations.
-- BPJS configuration: Contribution rates and caps for KESEHATAN, JHT, JP, JKK, JKM.
-- Attendance and overtime: Shift definitions, daily attendance records, and overtime calculations with configurable multipliers.
-- Leaves: Leave types, annual entitlements, balances, and approval workflows.
-- Kasbon (employee advances): Loan requests and installment schedules integrated into payroll runs.
-- Bonuses and reimbursements: Award types, bonus grants, and expense reimbursement claims linked to payroll runs.
-- Payroll processing: Batch payroll runs, individual payslips, and detailed payslip line items (earnings, deductions, taxes, BPJS).
-- Integration and localization: AI settings, language packs, translations, and audit logs for compliance and traceability.
+The system consists of several interconnected components that work together to provide comprehensive payroll and HR management capabilities:
 
-Key technologies:
-- FastAPI: Asynchronous web framework for building APIs with automatic OpenAPI documentation.
-- SQLAlchemy: ORM for database modeling, relationships, and migrations.
-- Alembic: Schema migration tool with batch rendering for SQLite compatibility.
-- Pydantic: Data validation and settings management.
+### Backend Foundation
+- **FastAPI Application**: High-performance asynchronous web framework providing automatic OpenAPI documentation and robust request validation
+- **Database Layer**: SQLAlchemy ORM with comprehensive multi-tenant support and audit trails
+- **Service Layer**: Business logic encapsulated in specialized services for payroll processing, AI integration, and data management
+- **Router System**: Modular API routing organized by functional domains (payroll, HR, tax, attendance)
+
+### HRIS Functionality
+- **Employee Management**: Complete employee lifecycle management with organizational hierarchy
+- **Payroll Processing**: Automated batch processing with tax computation and benefit calculations
+- **Attendance Tracking**: Real-time attendance recording with overtime computation
+- **Leave Management**: Automated leave entitlements with approval workflows
+- **Compensation Management**: Flexible salary structures with allowance and deduction tracking
+
+### Advanced Features
+- **AI Integration**: Intelligent assistants for payroll queries, compliance guidance, and HR insights
+- **Reporting Engine**: Dynamic report generation with AI-powered analysis
+- **Notification System**: In-app notifications for payslip generation and HR events
+- **Audit Trail**: Comprehensive logging for compliance and traceability
 
 **Section sources**
-- [requirements.txt:1-14](file://requirements.txt#L1-L14)
-- [app/models/auth.py:1-133](file://app/models/auth.py#L1-L133)
-- [app/models/employee.py:1-132](file://app/models/employee.py#L1-L132)
-- [app/models/salary.py:1-135](file://app/models/salary.py#L1-L135)
-- [app/models/tax.py:1-115](file://app/models/tax.py#L1-L115)
-- [app/models/bpjs.py:1-44](file://app/models/bpjs.py#L1-L44)
-- [app/models/attendance.py:1-134](file://app/models/attendance.py#L1-L134)
-- [app/models/leave.py:1-97](file://app/models/leave.py#L1-L97)
-- [app/models/kasbon.py:1-78](file://app/models/kasbon.py#L1-L78)
-- [app/models/bonus.py:1-123](file://app/models/bonus.py#L1-L123)
-- [app/models/payroll.py:1-124](file://app/models/payroll.py#L1-L124)
-- [app/models/integration.py:1-93](file://app/models/integration.py#L1-L93)
+- [app/main.py:10-27](file://app/main.py#L10-L27)
+- [app/models/integration.py:21-120](file://app/models/integration.py#L21-L120)
+- [requirements.txt:1-23](file://requirements.txt#L1-L23)
 
-## Architecture Overview
-The system employs a multi-tenant architecture centered around the Company entity. Each tenant (company) has isolated data for employees, payroll configurations, tax settings, and other HRIS entities. The database layer uses a shared engine with FastAPI dependency injection to supply sessions per request. Alembic manages schema evolution with batch rendering for SQLite compatibility.
+## Frontend Implementation
+The Next.js frontend provides a modern, responsive user interface with comprehensive HRIS functionality. Built with React and TypeScript, it offers intuitive navigation, real-time data visualization, and seamless integration with the backend APIs.
+
+### Framework Architecture
+- **Next.js App Router**: Modern routing system with dynamic routes and API integration
+- **TypeScript Integration**: Strongly typed components and API interfaces
+- **Tailwind CSS**: Utility-first styling with responsive design
+- **React Hook Form**: Form validation and state management
+- **Zod Validation**: Runtime type checking and form validation
+
+### User Interface Components
+- **Dashboard**: Executive overview with key metrics and recent activities
+- **Employee Portal**: Self-service portal for employees to view payslips and attendance
+- **HR Management**: Comprehensive forms for employee data, attendance, and leave management
+- **Payroll Interface**: Specialized tools for payroll processing and payslip management
+- **AI Assistant**: Integrated chat interface for intelligent HR assistance
+
+### Authentication and Navigation
+- **Middleware Protection**: Route protection with authentication checks
+- **Responsive Design**: Mobile-first approach with adaptive layouts
+- **Real-time Updates**: WebSocket integration for live data synchronization
+- **Error Handling**: Comprehensive error boundaries and user-friendly error messages
+
+**Section sources**
+- [frontend/package.json:10-27](file://frontend/package.json#L10-L27)
+- [frontend/src/middleware.ts:6-24](file://frontend/src/middleware.ts#L6-L24)
+- [frontend/src/lib/api.ts:42-75](file://frontend/src/lib/api.ts#L42-L75)
+
+## AI Integration
+The system incorporates advanced AI capabilities through OpenAI-compatible providers, enabling intelligent automation and insights for HR and payroll operations.
+
+### AI Service Architecture
+- **Provider Agnostic**: Support for multiple AI providers (OpenAI, Anthropic, Google AI)
+- **Context Intelligence**: Dynamic context building from payroll and HR data
+- **Regulatory Compliance**: AI trained on Indonesian tax and labor regulations
+- **Security First**: API key masking and secure credential management
+
+### AI Capabilities
+- **Intelligent Chat**: Natural language processing for payroll queries and HR assistance
+- **Automated Reporting**: AI-powered insights and trend analysis
+- **Compliance Guidance**: Real-time advice on tax and labor law compliance
+- **Data Analysis**: Pattern recognition in attendance, leave, and payroll data
+
+### Implementation Details
+- **HTTP Client Integration**: Synchronous AI calls via httpx with timeout management
+- **Prompt Engineering**: Context-aware prompts tailored to Indonesian HR regulations
+- **Error Handling**: Comprehensive error handling for network failures and API limits
+- **Performance Optimization**: Configurable timeouts and token limits for cost control
 
 ```mermaid
-graph TB
-CLIENT["Client Applications<br/>Web, Mobile, Integrations"]
-API["FastAPI Backend"]
-DB["SQLAlchemy Engine<br/>Sessions via get_db()"]
-ALEMBIC["Alembic Migrations"]
-MODELS["SQLAlchemy Models<br/>Domain Packages"]
-CLIENT --> API
-API --> DB
-DB --> MODELS
-MODELS --> DB
-DB --> ALEMBIC
+sequenceDiagram
+participant User as "User Interface"
+participant API as "FastAPI Backend"
+participant AI as "AI Proxy Service"
+participant Provider as "AI Provider"
+User->>API : "AI Chat Request"
+API->>AI : "Build Context & Messages"
+AI->>AI : "Query Database Context"
+AI->>Provider : "Call Chat Completions"
+Provider-->>AI : "AI Response"
+AI-->>API : "Process Response"
+API-->>User : "Formatted Answer"
+Note over AI : "Context Building : <br/>- Payroll Data<br/>- Employee Records<br/>- Tax Settings<br/>- BPJS Configurations"
 ```
 
 **Diagram sources**
-- [app/database.py:38-54](file://app/database.py#L38-L54)
-- [alembic/env.py:25-26](file://alembic/env.py#L25-L26)
-- [app/models/__init__.py:1-69](file://app/models/__init__.py#L1-L69)
+- [app/routers/ai.py:120-142](file://app/routers/ai.py#L120-L142)
+- [app/services/ai_proxy_service.py:161-285](file://app/services/ai_proxy_service.py#L161-L285)
 
 **Section sources**
-- [app/database.py:1-63](file://app/database.py#L1-L63)
-- [alembic/env.py:1-80](file://alembic/env.py#L1-L80)
-- [app/models/__init__.py:1-69](file://app/models/__init__.py#L1-L69)
+- [app/routers/ai.py:1-202](file://app/routers/ai.py#L1-L202)
+- [app/services/ai_proxy_service.py:1-286](file://app/services/ai_proxy_service.py#L1-L286)
+- [app/schemas/ai.py:1-106](file://app/schemas/ai.py#L1-L106)
 
-## Detailed Component Analysis
+## Multi-Tenant Design
+The system implements a sophisticated multi-tenant architecture that ensures complete data isolation between organizations while sharing infrastructure resources efficiently.
 
-### Multi-Tenant Design and Company Context
-- Company serves as the tenant boundary. All major entities (users, employees, tax settings, allowances, etc.) are scoped to a company via foreign keys.
-- Company-level defaults influence payroll method, work week days, and language preferences.
-- Users are associated with a company and can be linked to an employee record for self-service access.
+### Tenant Isolation Strategy
+- **Company Boundary**: All data is scoped to company entities through foreign key relationships
+- **Resource Sharing**: Shared infrastructure with tenant-specific data partitioning
+- **Access Control**: Role-based access control (RBAC) per tenant
+- **Billing Separation**: Financial isolation for multi-tenant SaaS deployments
 
-```mermaid
-classDiagram
-class Company {
-+int id
-+string name
-+string tax_number
-+int work_week_days
-+string payroll_method
-+string default_language
-+boolean is_active
-}
-class User {
-+int id
-+string username
-+string email
-+string password_hash
-+string full_name
-+boolean is_active
-+int employee_id
-+int company_id
-}
-Company "1" <-- "many" User : "has"
-```
+### Data Partitioning
+- **Hierarchical Organization**: Departments, positions, and employee hierarchies per company
+- **Configuration Isolation**: Company-specific tax settings, allowance types, and payroll methods
+- **Audit Separation**: Separate audit trails per tenant for compliance purposes
+- **User Management**: Multi-tenant user accounts with company associations
 
-**Diagram sources**
+### Scalability Features
+- **Database Optimization**: Efficient indexing and query optimization per tenant
+- **Caching Strategy**: Tenant-aware caching for improved performance
+- **Resource Limits**: Configurable limits per tenant for resource management
+- **Backup Isolation**: Tenant-specific backup and recovery procedures
+
+**Section sources**
 - [app/models/auth.py:22-48](file://app/models/auth.py#L22-L48)
-- [app/models/auth.py:110-132](file://app/models/auth.py#L110-L132)
+- [app/models/integration.py:21-37](file://app/models/integration.py#L21-L37)
+
+## Regulatory Compliance
+The system is designed to meet all Indonesian payroll and HR regulatory requirements with automated compliance checking and audit trail capabilities.
+
+### Tax Compliance
+- **PPh 21 Calculation**: Automated computation based on PTKP status and progressive tax brackets
+- **TER Implementation**: Simplified tax computation for eligible companies
+- **PTKP Management**: Dynamic PTKP value management aligned with annual regulations
+- **Withholding Tax**: Automatic tax deduction and remittance scheduling
+
+### Social Security Compliance
+- **BPJS Integration**: Automated contribution calculations for KESEHATAN, JHT, JP, JKK, JKM
+- **Rate Management**: Dynamic rate updates based on regulatory changes
+- **Contribution Tracking**: Real-time contribution monitoring and reporting
+- **Cap Management**: Automatic application of contribution caps and thresholds
+
+### Labor Law Alignment
+- **Leave Entitlements**: Automated calculation based on employment status and tenure
+- **Overtime Rules**: Compliance with Indonesian overtime regulations and multipliers
+- **Working Hours**: Adherence to maximum working hour regulations
+- **Contract Types**: Support for various employment contract types
+
+### Audit and Reporting
+- **Comprehensive Logging**: Full audit trail of all HR and payroll transactions
+- **Regulatory Reporting**: Automated generation of compliance reports
+- **Trail Analysis**: Historical analysis for regulatory audits
+- **Data Retention**: Automated data lifecycle management
 
 **Section sources**
-- [app/models/auth.py:22-48](file://app/models/auth.py#L22-L48)
-- [app/models/auth.py:110-132](file://app/models/auth.py#L110-L132)
-
-### Employee and Organizational Data
-- Employees are linked to departments, positions, employment statuses, and grades.
-- Demographic and tax fields include NPWP and PTKP status aligned with Indonesian regulations.
-- Indexes optimize queries by company, department, and PTKP status.
-
-```mermaid
-classDiagram
-class Department {
-+int id
-+int company_id
-+string name
-+string code
-+boolean is_active
-}
-class Position {
-+int id
-+int company_id
-+string name
-+string code
-+boolean is_active
-}
-class EmploymentStatus {
-+int id
-+int company_id
-+string name
-+string code
-+boolean is_permanent
-+boolean is_active
-}
-class Employee {
-+int id
-+int company_id
-+string employee_code
-+string full_name
-+date date_joined
-+string ptkp_status
-+numeric base_salary
-+boolean is_active
-}
-Department "1" <-- "many" Employee : "has"
-Position "1" <-- "many" Employee : "has"
-EmploymentStatus "1" <-- "many" Employee : "has"
-```
-
-**Diagram sources**
-- [app/models/employee.py:20-131](file://app/models/employee.py#L20-L131)
-
-**Section sources**
-- [app/models/employee.py:1-132](file://app/models/employee.py#L1-L132)
-
-### Salary and Compensation
-- Grades define hierarchical levels; a salary matrix defines min/max ranges with effective/end dates.
-- Allowance types support fixed, percentage, or formula-based calculations and are marked taxable/BPJS base.
-- Employee allowances are assigned with effective date ranges.
-- Deduction types capture recurring or one-time deductions.
-
-```mermaid
-classDiagram
-class Grade {
-+int id
-+int company_id
-+string grade_name
-+string grade_code
-+boolean is_active
-}
-class GradeSalaryMatrix {
-+int id
-+int grade_id
-+numeric basic_salary_min
-+numeric basic_salary_max
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class AllowanceType {
-+int id
-+int company_id
-+string name
-+string code
-+string calculation_type
-+boolean is_taxable
-+boolean is_bpjs_base
-+boolean is_active
-}
-class EmployeeAllowance {
-+int id
-+int employee_id
-+int allowance_type_id
-+numeric amount
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class DeductionType {
-+int id
-+int company_id
-+string name
-+string code
-+string calculation_type
-+boolean is_recurring
-+boolean is_active
-}
-Grade "1" <-- "many" GradeSalaryMatrix : "has"
-AllowanceType "1" <-- "many" EmployeeAllowance : "has"
-```
-
-**Diagram sources**
-- [app/models/salary.py:21-134](file://app/models/salary.py#L21-L134)
-
-**Section sources**
-- [app/models/salary.py:1-135](file://app/models/salary.py#L1-L135)
-
-### Tax Compliance (Indonesian PPh)
-- TaxSetting stores company-level tax calculation method (PASAL_17 or TER).
-- PtkpValue holds monthly thresholds per PTKP category aligned with regulations.
-- TaxBracketPasal17 defines progressive tax brackets for UU HPP.
-- TerBracket defines TER categories and rates for simplified tax computation.
-
-```mermaid
-classDiagram
-class TaxSetting {
-+int id
-+int company_id
-+string tax_calculation_method
-+boolean is_active
-}
-class PtkpValue {
-+int id
-+int company_id
-+string ptkp_code
-+string description
-+numeric annual_amount
-+numeric monthly_amount
-+int regulation_year
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class TaxBracketPasal17 {
-+int id
-+int company_id
-+int bracket_order
-+numeric income_range_min
-+numeric income_range_max
-+numeric tax_rate
-+int regulation_year
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class TerBracket {
-+int id
-+int company_id
-+string category
-+numeric income_range_min
-+numeric income_range_max
-+numeric ter_rate
-+int regulation_year
-+date effective_date
-+date end_date
-+boolean is_active
-}
-```
-
-**Diagram sources**
 - [app/models/tax.py:19-114](file://app/models/tax.py#L19-L114)
-
-**Section sources**
-- [app/models/tax.py:1-115](file://app/models/tax.py#L1-L115)
-
-### BPJS Configuration
-- BpjsSetting defines contribution rates and optional caps for KESEHATAN, JHT, JP, JKK, JKM per company and effective date.
-
-```mermaid
-classDiagram
-class BpjsSetting {
-+int id
-+int company_id
-+string bpjs_type
-+numeric employee_rate
-+numeric employer_rate
-+numeric max_salary_base
-+int regulation_year
-+date effective_date
-+date end_date
-+boolean is_active
-}
-```
-
-**Diagram sources**
 - [app/models/bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [app/models/integration.py:71-93](file://app/models/integration.py#L71-L93)
+
+## Technology Stack
+The system leverages modern technologies to provide a robust, scalable, and maintainable solution.
+
+### Backend Technologies
+- **FastAPI**: High-performance asynchronous web framework with automatic API documentation
+- **SQLAlchemy**: Object-relational mapping with comprehensive relationship support
+- **Alembic**: Database migration management with batch rendering for SQLite compatibility
+- **Pydantic**: Data validation and settings management with type safety
+- **Passlib**: Secure password hashing and verification
+- **HTTPX**: Asynchronous HTTP client for external service integration
+
+### Database Technologies
+- **PostgreSQL**: Primary database with advanced features and scalability
+- **LibSQL**: Alternative lightweight database option for edge deployments
+- **SQLAlchemy ORM**: Type-safe database operations with relationship management
+- **Connection Pooling**: Optimized database connection management
+
+### Frontend Technologies
+- **Next.js 16**: Latest version with App Router and server-side rendering
+- **React 19**: Latest React features with concurrent rendering
+- **TypeScript**: Strong typing for better developer experience and error prevention
+- **Tailwind CSS**: Utility-first CSS framework for rapid UI development
+- **React Hook Form**: Performant form validation and state management
+- **Zod**: Runtime type checking and form validation
+
+### AI and Integration
+- **LangChain**: AI chain orchestration and prompt management
+- **OpenAI SDK**: Official OpenAI integration with provider flexibility
+- **WeasyPrint**: High-quality PDF generation for payslips and reports
+- **Pandas**: Data manipulation and Excel integration
+- **OpenPyXL**: Excel file processing and export capabilities
+
+### Development and Deployment
+- **Pytest**: Comprehensive testing framework with async support
+- **Faker**: Test data generation for development environments
+- **Vercel**: Cloud platform for frontend deployment and edge computing
+- **Docker**: Containerization for consistent development and production environments
 
 **Section sources**
-- [app/models/bpjs.py:1-44](file://app/models/bpjs.py#L1-L44)
+- [requirements.txt:1-23](file://requirements.txt#L1-L23)
+- [frontend/package.json:10-27](file://frontend/package.json#L10-L27)
 
-### Attendance and Overtime
-- Shift defines work timing and break duration.
-- EmployeeShiftAssignment links employees to shifts with effective date ranges.
-- AttendanceRecord captures daily presence with status and lateness metrics.
-- OvertimeRecord tracks overtime hours, multipliers, and approval lifecycle.
-- OvertimeSetting configures company-level multipliers and weekly pattern.
+## Practical Use Cases
+The system demonstrates practical applications across various HR and payroll scenarios, showcasing its comprehensive capabilities.
 
-```mermaid
-classDiagram
-class Shift {
-+int id
-+int company_id
-+string code
-+string name
-+string start_time
-+string end_time
-+int break_duration_minutes
-+boolean is_active
-}
-class EmployeeShiftAssignment {
-+int id
-+int employee_id
-+int shift_id
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class AttendanceRecord {
-+int id
-+int employee_id
-+date attendance_date
-+string status
-+string check_in_time
-+string check_out_time
-+boolean is_late
-+int late_minutes
-+numeric hours_worked
-}
-class OvertimeRecord {
-+int id
-+int employee_id
-+date overtime_date
-+string overtime_type
-+numeric hours
-+numeric multiplier
-+numeric calculated_amount
-+string approval_status
-}
-class OvertimeSetting {
-+int id
-+int company_id
-+string work_week_type
-+numeric weekday_first_hour_multiplier
-+numeric weekday_subsequent_multiplier
-+numeric weekend_first_hour_multiplier
-+numeric weekend_subsequent_multiplier
-+numeric late_penalty_per_minute
-+boolean is_active
-}
-Shift "1" <-- "many" EmployeeShiftAssignment : "has"
-```
-
-**Diagram sources**
-- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
-
-**Section sources**
-- [app/models/attendance.py:1-134](file://app/models/attendance.py#L1-L134)
-
-### Leaves
-- LeaveType defines categories with default annual entitlements and approval requirements.
-- EmployeeLeaveBalance tracks opening/closing balances and carry-forward per year.
-- LeaveRequest manages submission, approvals, and status transitions.
+### Automated Payslip Generation
+The system streamlines the entire payslip creation process from raw data to final delivery:
 
 ```mermaid
-classDiagram
-class LeaveType {
-+int id
-+int company_id
-+string name
-+string code
-+int default_annual_entitlement
-+boolean is_paid
-+boolean requires_approval
-+boolean is_active
-}
-class EmployeeLeaveBalance {
-+int id
-+int employee_id
-+int leave_type_id
-+int year
-+int opening_balance
-+int entitlement
-+int used
-+int carried_forward
-+int closing_balance
-}
-class LeaveRequest {
-+int id
-+int employee_id
-+int leave_type_id
-+date start_date
-+date end_date
-+int days_requested
-+string status
-}
-```
-
-**Diagram sources**
-- [app/models/leave.py:19-96](file://app/models/leave.py#L19-L96)
-
-**Section sources**
-- [app/models/leave.py:1-97](file://app/models/leave.py#L1-L97)
-
-### Kasbon (Employee Advances)
-- KasbonRequest models loan requests with installments, amounts, and status.
-- KasbonInstallment schedules payments and optionally links to a payroll run.
-
-```mermaid
-classDiagram
-class KasbonRequest {
-+int id
-+int employee_id
-+string kasbon_number
-+numeric principal_amount
-+int number_of_installments
-+numeric installment_amount
-+string status
-}
-class KasbonInstallment {
-+int id
-+int kasbon_request_id
-+int installment_number
-+numeric amount
-+date due_date
-+boolean is_paid
-+date paid_date
-+int payroll_run_id
-}
-KasbonRequest "1" <-- "many" KasbonInstallment : "has"
-```
-
-**Diagram sources**
-- [app/models/kasbon.py:18-77](file://app/models/kasbon.py#L18-L77)
-
-**Section sources**
-- [app/models/kasbon.py:1-78](file://app/models/kasbon.py#L1-L78)
-
-### Bonuses and Reimbursements
-- BonusType and Bonus track award types and processed bonuses linked to payroll runs.
-- ReimbursementType and Reimbursement handle expense claims with approval and processing.
-
-```mermaid
-classDiagram
-class BonusType {
-+int id
-+int company_id
-+string name
-+string code
-+boolean is_taxable
-+boolean is_active
-}
-class Bonus {
-+int id
-+int employee_id
-+int bonus_type_id
-+numeric amount
-+date bonus_date
-+string approval_status
-+boolean is_processed
-}
-class ReimbursementType {
-+int id
-+int company_id
-+string name
-+string code
-+numeric max_amount
-+boolean is_taxable
-+boolean is_active
-}
-class Reimbursement {
-+int id
-+int employee_id
-+int reimbursement_type_id
-+numeric claim_amount
-+numeric approved_amount
-+date claim_date
-+date expense_date
-+string approval_status
-+boolean is_processed
-}
-```
-
-**Diagram sources**
-- [app/models/bonus.py:20-122](file://app/models/bonus.py#L20-L122)
-
-**Section sources**
-- [app/models/bonus.py:1-123](file://app/models/bonus.py#L1-L123)
-
-### Payroll Processing
-- PayrollRun orchestrates batch processing per company and period with status tracking.
-- Payslip aggregates earnings, deductions, taxes, and BPJS contributions per employee.
-- PayslipLine itemizes each line (earning, deduction, tax, BPJS, net) with categorization and sorting.
-
-```mermaid
-classDiagram
-class PayrollRun {
-+int id
-+int company_id
-+string payroll_period
-+date period_start_date
-+date period_end_date
-+string payroll_method
-+string tax_method
-+string status
-+int total_employees
-+numeric total_gross
-+numeric total_deductions
-+numeric total_tax
-+numeric total_net
-}
-class Payslip {
-+int id
-+int payroll_run_id
-+int employee_id
-+string payslip_number
-+numeric basic_salary
-+numeric total_allowances
-+numeric overtime_amount
-+numeric bonus_amount
-+numeric gross_salary
-+numeric bpjs_kes_employee
-+numeric bpjs_jht_employee
-+numeric bpjs_jp_employee
-+numeric pph21_tax
-+numeric kasbon_deduction
-+numeric other_deductions
-+numeric total_deductions
-+numeric net_salary
-+int working_days
-+numeric overtime_hours
-+boolean is_approved
-}
-class PayslipLine {
-+int id
-+int payslip_id
-+string line_type
-+string category
-+string description
-+numeric amount
-+int sort_order
-}
-PayrollRun "1" <-- "many" Payslip : "generates"
-Payslip "1" <-- "many" PayslipLine : "contains"
+flowchart TD
+START["Payroll Period Ends"] --> DATA["Collect Attendance & Overtime"]
+DATA --> CALC["Calculate Earnings & Deductions"]
+CALC --> TAX["Compute Tax & Social Security"]
+TAX --> REVIEW["Review & Approve"]
+REVIEW --> GENERATE["Generate Payslips"]
+GENERATE --> PDF["Create PDF Documents"]
+PDF --> EMAIL["Email to Employees"]
+EMAIL --> ARCHIVE["Archive Records"]
+STYLE["Style: Blue fill for automated steps"]
+STYLE2["Style: Yellow fill for manual steps"]
 ```
 
 **Diagram sources**
 - [app/models/payroll.py:19-123](file://app/models/payroll.py#L19-L123)
 
-**Section sources**
-- [app/models/payroll.py:1-124](file://app/models/payroll.py#L1-L124)
+### AI-Powered HR Assistance
+Employees and HR staff can interact with intelligent assistants for complex payroll questions:
 
-### Integration, Localization, and Audit
-- AiSetting enables AI integrations per company with provider configuration.
-- Language and Translation support multi-language UI and messaging.
-- AuditLog records user actions across entities for compliance and traceability.
+- **Natural Language Queries**: "How is my tax calculated?"
+- **Compliance Guidance**: "What are the rules for overtime pay?"
+- **Policy Interpretation**: "Can I take leave during probation period?"
+- **Data Analysis**: "Show me attendance trends for my department"
 
-```mermaid
-classDiagram
-class AiSetting {
-+int id
-+int company_id
-+string provider_name
-+string model_name
-+numeric temperature
-+int max_tokens
-+boolean is_active
-}
-class Language {
-+int id
-+string language_code
-+string language_name
-+boolean is_default
-+boolean is_active
-}
-class Translation {
-+int id
-+int language_id
-+string translation_key
-+string module
-}
-class AuditLog {
-+int id
-+int user_id
-+string entity_type
-+int entity_id
-+string action
-+string ip_address
-+datetime created_at
-}
-Language "1" <-- "many" Translation : "has"
-```
+### Real-Time Attendance Management
+The system provides comprehensive attendance tracking with automated calculations:
 
-**Diagram sources**
-- [app/models/integration.py:21-92](file://app/models/integration.py#L21-L92)
+- **Clock-in/Clock-out**: GPS-enabled attendance with location verification
+- **Late Arrivals**: Automatic detection and penalty calculation
+- **Leave Integration**: Automatic attendance adjustment for approved leaves
+- **Overtime Detection**: Automatic overtime calculation based on working hours
+
+### Dynamic Reporting and Insights
+Managers receive AI-powered insights through customizable reports:
+
+- **Payroll Summary**: Monthly and quarterly financial summaries
+- **Attendance Analysis**: Patterns and trends in employee punctuality
+- **Compliance Review**: Automated audit of tax and social security compliance
+- **Employee Insights**: Demographic and performance trend analysis
 
 **Section sources**
-- [app/models/integration.py:1-93](file://app/models/integration.py#L1-L93)
+- [app/routers/ai.py:147-202](file://app/routers/ai.py#L147-L202)
+- [app/services/ai_proxy_service.py:161-285](file://app/services/ai_proxy_service.py#L161-L285)
 
-### Practical Use Cases and Workflows
+## Deployment Architecture
+The system supports flexible deployment options from cloud platforms to edge computing environments.
 
-#### Payslip Generation
-- Scenario: At month-end, a PayrollRun is created for a company’s payroll period. The system aggregates attendance, allowances, overtime, bonuses, and applies tax and BPJS calculations based on employee data and company settings. Each employee receives a Payslip with a breakdown via PayslipLine entries.
+### Cloud-Native Deployment
+- **Microservices Architecture**: Independent service containers for scalability
+- **Load Balancing**: Automatic traffic distribution across service instances
+- **Auto-scaling**: Dynamic resource allocation based on demand
+- **CI/CD Pipeline**: Automated testing and deployment processes
 
-```mermaid
-sequenceDiagram
-participant Operator as "Operator"
-participant API as "Payroll API"
-participant Run as "PayrollRun"
-participant Slip as "Payslip"
-participant Line as "PayslipLine"
-Operator->>API : "Create PayrollRun(company_id, period)"
-API->>Run : "Persist run with status=DRAFT"
-API->>Slip : "Generate per employee"
-Slip->>Line : "Add EARNINGS, DEDUCTIONS, TAXES, BPJS"
-API-->>Operator : "Run APPROVED with payslips"
-```
+### Edge Computing Support
+- **LibSQL Integration**: Lightweight database for edge deployments
+- **Offline Capability**: Local data processing with eventual consistency
+- **Edge AI**: On-premises AI inference for privacy-sensitive data
+- **Reduced Latency**: Local processing for real-time HR operations
 
-**Diagram sources**
-- [app/models/payroll.py:19-123](file://app/models/payroll.py#L19-L123)
+### Security and Compliance
+- **Data Encryption**: End-to-end encryption for sensitive HR data
+- **Access Control**: Multi-factor authentication and role-based permissions
+- **Audit Logging**: Comprehensive logging for compliance auditing
+- **Data Residency**: Regional data storage for legal compliance
 
-**Section sources**
-- [app/models/payroll.py:1-124](file://app/models/payroll.py#L1-L124)
-
-#### Attendance Tracking and Overtime
-- Scenario: An employee clocks in/out daily. AttendanceRecord captures status and lateness. OvertimeRecords are submitted and approved; multipliers from OvertimeSetting compute amounts included in Payslip.
-
-```mermaid
-flowchart TD
-Start(["Daily Attendance"]) --> Record["Create AttendanceRecord"]
-Record --> Status{"Status"}
-Status --> |Late| MarkLate["Mark late minutes"]
-Status --> |Present| ComputeHours["Compute worked hours"]
-Status --> |Leave/Sick| NoOT["No overtime"]
-ComputeHours --> OTReq["Submit OvertimeRecord"]
-OTReq --> Approve{"Approve?"}
-Approve --> |Yes| CalcAmt["Apply OvertimeSetting multipliers"]
-Approve --> |No| Reject["Reject request"]
-CalcAmt --> IncludeSlip["Include in Payslip"]
-Reject --> End(["End"])
-IncludeSlip --> End
-```
-
-**Diagram sources**
-- [app/models/attendance.py:56-133](file://app/models/attendance.py#L56-L133)
-
-**Section sources**
-- [app/models/attendance.py:1-134](file://app/models/attendance.py#L1-L134)
-
-#### Tax Computation (PPh Pasal 17 and TER)
-- Scenario: Based on company tax settings and employee PTKP status, the system selects applicable brackets or TER rates to compute PPH21 tax for each payslip.
-
-```mermaid
-flowchart TD
-Start(["Gross Salary"]) --> PTKP["Lookup PTKP value"]
-PTKP --> Method{"Tax Method"}
-Method --> |PASAL_17| Brackets["Apply progressive brackets"]
-Method --> |TER| TER["Apply TER category rates"]
-Brackets --> Tax["Compute monthly tax"]
-TER --> Tax
-Tax --> Deduct["Deduct from gross to net"]
-Deduct --> End(["Net Salary"])
-```
-
-**Diagram sources**
-- [app/models/tax.py:19-114](file://app/models/tax.py#L19-L114)
-
-**Section sources**
-- [app/models/tax.py:1-115](file://app/models/tax.py#L1-L115)
-
-#### Leave Management
-- Scenario: An employee submits a leave request; the system validates entitlements via EmployeeLeaveBalance and updates status upon approval.
-
-```mermaid
-sequenceDiagram
-participant Emp as "Employee"
-participant API as "Leave API"
-participant Bal as "EmployeeLeaveBalance"
-participant Req as "LeaveRequest"
-Emp->>API : "Submit LeaveRequest(start, end, type)"
-API->>Bal : "Check entitlement and used days"
-API->>Req : "Create with status=PENDING"
-API-->>Emp : "Confirmation"
-API-->>Emp : "Approval notification"
-```
-
-**Diagram sources**
-- [app/models/leave.py:66-96](file://app/models/leave.py#L66-L96)
-
-**Section sources**
-- [app/models/leave.py:1-97](file://app/models/leave.py#L1-L97)
-
-## Dependency Analysis
-- Database and sessions: Centralized engine and get_db() dependency inject sessions for each request.
-- Model registry: app/models/__init__.py exposes all domain models for Alembic autogenerate and Base metadata.
-- Migrations: Alembic env loads Base metadata and runs offline/online migrations with batch rendering.
-- Seed data: Initial Indonesian regulatory defaults are loaded via app/seed/seed_data.py.
-
-```mermaid
-graph LR
-REQ["requirements.txt"] --> FASTAPI["FastAPI"]
-REQ --> SQLA["SQLAlchemy"]
-REQ --> ALEMBIC["Alembic"]
-DB["app/database.py"] --> MODELS["app/models/*"]
-ENV["alembic/env.py"] --> MODELS
-SEED["app/seed/seed_data.py"] --> MODELS
-```
-
-**Diagram sources**
-- [requirements.txt:1-14](file://requirements.txt#L1-L14)
-- [app/database.py:15-17](file://app/database.py#L15-L17)
-- [alembic/env.py:14-26](file://alembic/env.py#L14-L26)
-- [app/seed/seed_data.py:19-24](file://app/seed/seed_data.py#L19-L24)
-
-**Section sources**
-- [requirements.txt:1-14](file://requirements.txt#L1-L14)
-- [app/database.py:1-63](file://app/database.py#L1-L63)
-- [alembic/env.py:1-80](file://alembic/env.py#L1-L80)
-- [app/seed/seed_data.py:1-448](file://app/seed/seed_data.py#L1-L448)
-
-## Performance Considerations
-- Database tuning: Static connection pooling and foreign key enforcement for SQLite; consider connection pooling and indexing strategies for production-grade databases.
-- Query optimization: Leverage existing indexes on frequently filtered columns (e.g., employee_id, status, payroll period).
-- Batch operations: Use bulk inserts during seeding and migrations; avoid N+1 queries by eager-loading relationships where appropriate.
-- Caching: Consider caching company-level settings (tax, BPJS, overtime) to reduce repeated lookups.
-
-## Troubleshooting Guide
-- Database initialization: Ensure Base.metadata.create_all is invoked at startup or run Alembic migrations to create tables.
-- Session lifecycle: Use the get_db() dependency to ensure sessions are yielded and closed properly.
-- Migration errors: Confirm Alembic env loads Base.metadata and render_as_batch is enabled for SQLite compatibility.
-- Regulatory data: Verify seed data is executed to populate Indonesian defaults (PTKP, tax brackets, BPJS, languages, leave types).
-
-**Section sources**
-- [app/database.py:56-63](file://app/database.py#L56-L63)
-- [app/database.py:38-54](file://app/database.py#L38-L54)
-- [alembic/env.py:25-79](file://alembic/env.py#L25-L79)
-- [app/seed/seed_data.py:27-63](file://app/seed/seed_data.py#L27-L63)
+### Monitoring and Observability
+- **Performance Metrics**: Real-time monitoring of system performance
+- **Error Tracking**: Comprehensive error reporting and alerting
+- **Usage Analytics**: Insight into system utilization and user behavior
+- **Health Checks**: Automated system health monitoring and alerts
 
 ## Conclusion
-This Indonesian Payroll & HRIS backend provides a solid, multi-tenant foundation for automating payroll, attendance, leaves, bonuses, and tax compliance with Indonesian regulations. Its modular SQLAlchemy models, robust RBAC, and regulatory-aligned data structures enable scalable deployments for HR and finance teams. The combination of FastAPI for APIs, SQLAlchemy for persistence, and Alembic for migrations offers a maintainable and extensible architecture suitable for both small businesses and enterprise-scale operations.
+The Indonesian Payroll & HRIS system represents a significant advancement in automated HR management, combining traditional payroll expertise with modern AI capabilities. The migration from a simple backend to a comprehensive platform demonstrates the evolution toward intelligent, automated HR solutions.
 
-## Appendices
-- Multi-tenant scope: All major entities are bound to Company via foreign keys, ensuring tenant isolation.
-- Auditability: AuditLog captures key actions across entities for compliance and traceability.
-- Localization: Language and Translation tables prepare the system for multi-language support.
+The system's strength lies in its comprehensive approach to Indonesian payroll and HR compliance, supported by robust multi-tenant architecture, advanced AI integration, and modern frontend development. It addresses the complex needs of Indonesian businesses while maintaining strict adherence to local regulations and providing intelligent automation capabilities.
+
+Key advantages include:
+- **Complete HRIS Coverage**: From payroll to employee management and compliance
+- **AI Integration**: Intelligent assistance and insights powered by natural language processing
+- **Regulatory Expertise**: Deep understanding of Indonesian tax and labor laws
+- **Scalable Architecture**: Multi-tenant design supporting growth from SMEs to enterprise
+- **Modern Technology Stack**: Leveraging best practices in both backend and frontend development
+
+The system positions itself as a forward-thinking solution that embraces both traditional HR needs and emerging AI-driven capabilities, providing Indonesian organizations with a competitive advantage in workforce management automation.

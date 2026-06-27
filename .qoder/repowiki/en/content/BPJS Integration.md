@@ -2,16 +2,27 @@
 
 <cite>
 **Referenced Files in This Document**
+- [bpjs.py](file://app/calculations/bpjs.py)
 - [bpjs.py](file://app/models/bpjs.py)
+- [bpjs.py](file://app/routers/bpjs.py)
+- [bpjs.py](file://app/schemas/bpjs.py)
+- [payroll_service.py](file://app/services/payroll_service.py)
+- [payslip_builder.py](file://app/services/payslip_builder.py)
 - [payroll.py](file://app/models/payroll.py)
-- [salary.py](file://app/models/salary.py)
-- [employee.py](file://app/models/employee.py)
-- [tax.py](file://app/models/tax.py)
+- [allowance.py](file://app/calculations/allowance.py)
 - [seed_data.py](file://app/seed/seed_data.py)
-- [base.py](file://app/models/base.py)
-- [__init__.py](file://app/models/__init__.py)
-- [database.py](file://app/database.py)
+- [test_bpjs.py](file://tests/test_bpjs.py)
+- [page.tsx](file://frontend/src/app/(dashboard)/settings/bpjs/page.tsx)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive BPJS calculation engine with pure functions and data classes
+- Integrated BPJS calculations into payroll processing pipeline
+- Implemented BPJS API endpoints for configuration management
+- Enhanced payslip builder to include BPJS line items
+- Added frontend interface for BPJS settings management
+- Updated payroll service to coordinate BPJS calculations with tax processing
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -26,393 +37,394 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document explains the BPJS (social security) integration within the Payroll & HRIS system. It covers BPJS settings management, contribution calculation methods, administration of social security contributions, and employee benefit tracking. It also documents the integration with payroll processing, tax calculations, and employee benefit management, along with regulatory compliance features such as contribution rates, salary caps, and effective dates.
+This document explains the comprehensive BPJS (Badan Penyelenggara Jaminan Sosial) integration within the Payroll & HRIS system. The integration encompasses complete social security contribution management, including contribution calculation algorithms, employer and employee contribution splits, regulatory compliance features, and seamless integration with payroll processing, tax calculations, and employee benefit management.
+
+The system implements a pure calculation engine for BPJS contributions with support for five major BPJS types: KESEHATAN (health insurance), JHT (old age pension), JP (retirement pension), JKK (work accident insurance), and JKM (death insurance). It provides real-time contribution calculations, salary base determination, rate application with optional caps, and comprehensive audit trails through detailed payslip line items.
 
 ## Project Structure
-The BPJS integration spans several model modules:
-- BPJS configuration and settings
-- Payroll computation and payslip generation
-- Allowance and deduction configuration affecting BPJS bases
-- Employee master data with BPJS identifiers
-- Tax settings and brackets (complementary to income tax processing)
-- Seed data for default BPJS settings aligned to Indonesian regulations
+The BPJS integration spans multiple layers of the application architecture:
 
 ```mermaid
 graph TB
-subgraph "Models"
-BPJS["BpjsSetting<br/>('bpjs_settings')"]
-PAY["PayrollRun, Payslip, PayslipLine<br/>('payroll_runs', 'payslips', 'payslip_lines')"]
-SAL["AllowanceType, EmployeeAllowance, DeductionType<br/>('allowance_types', 'employee_allowances', 'deduction_types')"]
-EMP["Employee<br/>('employees')"]
-TAX["TaxSetting, PtkpValue, TaxBracketPasal17, TerBracket<br/>('tax_settings', 'ptkp_values', 'tax_brackets_pasal_17', 'ter_brackets')"]
+subgraph "Calculation Layer"
+CALC["bpjs.py<br/>(Pure Functions & Data Classes)"]
+ALLOW["allowance.py<br/>(Allowance Aggregation)"]
+ENDPOINT["bpjs.py<br/>(API Endpoints)"]
+SCHEMA["bpjs.py<br/>(Pydantic Schemas)"]
+ENDPOINT --> CALC
+SCHEMA --> ENDPOINT
+ALLOW --> CALC
 end
-BPJS --> PAY
-SAL --> PAY
-EMP --> PAY
-TAX --> PAY
+subgraph "Service Layer"
+SERVICE["payroll_service.py<br/>(Payroll Orchestration)"]
+BUILDER["payslip_builder.py<br/>(Payslip Construction)"]
+SERVICE --> CALC
+SERVICE --> ALLOW
+BUILDER --> CALC
+end
+subgraph "Data Layer"
+MODEL["bpjs.py<br/>(ORM Models)"]
+PAYROLL["payroll.py<br/>(Payroll Models)"]
+SERVICE --> MODEL
+SERVICE --> PAYROLL
+BUILDER --> PAYROLL
+end
+subgraph "Presentation Layer"
+FRONTEND["page.tsx<br/>(Frontend Interface)"]
+FRONTEND --> ENDPOINT
+ENDPOINT --> MODEL
+end
 ```
 
 **Diagram sources**
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
-- [payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [salary.py:62-135](file://app/models/salary.py#L62-L135)
-- [employee.py:76-132](file://app/models/employee.py#L76-L132)
-- [tax.py:19-115](file://app/models/tax.py#L19-L115)
+- [bpjs.py:1-138](file://app/calculations/bpjs.py#L1-L138)
+- [allowance.py:1-122](file://app/calculations/allowance.py#L1-L122)
+- [payroll_service.py:25-303](file://app/services/payroll_service.py#L25-L303)
+- [payslip_builder.py:17-243](file://app/services/payslip_builder.py#L17-L243)
+- [bpjs.py:17-44](file://app/models/bpjs.py#L17-L44)
+- [payroll.py:64-123](file://app/models/payroll.py#L64-L123)
+- [page.tsx:65-190](file://frontend/src/app/(dashboard)/settings/bpjs/page.tsx#L65-L190)
 
 **Section sources**
-- [bpjs.py:1-44](file://app/models/bpjs.py#L1-L44)
-- [payroll.py:1-124](file://app/models/payroll.py#L1-L124)
-- [salary.py:1-135](file://app/models/salary.py#L1-L135)
-- [employee.py:1-132](file://app/models/employee.py#L1-L132)
-- [tax.py:1-115](file://app/models/tax.py#L1-L115)
+- [bpjs.py:1-138](file://app/calculations/bpjs.py#L1-L138)
+- [allowance.py:1-122](file://app/calculations/allowance.py#L1-L122)
+- [payroll_service.py:1-478](file://app/services/payroll_service.py#L1-L478)
+- [payslip_builder.py:1-277](file://app/services/payslip_builder.py#L1-L277)
+- [bpjs.py:17-44](file://app/models/bpjs.py#L17-L44)
+- [payroll.py:64-123](file://app/models/payroll.py#L64-L123)
+- [page.tsx:65-190](file://frontend/src/app/(dashboard)/settings/bpjs/page.tsx#L65-L190)
 
 ## Core Components
-- BpjsSetting: Stores BPJS contribution rates, employer/employee split, optional salary caps, regulation year, and effective/end dates. Enforces valid BPJS types and uniqueness per company/type/effective date.
-- PayrollRun, Payslip, PayslipLine: Manage batch payroll runs, individual payslips, and line items. Includes dedicated fields for BPJS contributions per employee and categorization of line items including BPJS.
-- AllowanceType: Supports configurable allowance types with a flag indicating whether the allowance contributes to BPJS bases. Used to compute earnings that form the BPJS salary base.
-- Employee: Holds employee identifiers for BPJS programs and demographic data used in HRIS.
-- Tax models: Provide complementary tax configuration and brackets used alongside BPJS during payroll computation.
 
-Key implementation references:
-- [BpjsSetting definition:17-43](file://app/models/bpjs.py#L17-L43)
-- [PayrollRun, Payslip, PayslipLine fields:19-123](file://app/models/payroll.py#L19-L123)
-- [AllowanceType.is_bpjs_base flag:72-77](file://app/models/salary.py#L72-L77)
-- [Employee BPJS number fields:109-112](file://app/models/employee.py#L109-L112)
-- [TaxSetting and brackets:19-115](file://app/models/tax.py#L19-L115)
+### Pure Calculation Engine
+The BPJS calculation engine consists of three core pure functions that perform mathematical operations without side effects:
+
+- **BpjsConfig**: In-memory configuration data class storing BPJS type, employee rate, employer rate, and maximum salary base
+- **BpjsResult**: Complete calculation result data class with individual contributions for each BPJS type and aggregated totals
+- **calculate_bpjs_base**: Computes BPJS base = base salary + sum of BPJS-eligible allowances
+- **calculate_bpjs_contribution**: Applies rates to capped base amounts with proper rounding
+- **calculate_all_bpjs**: Orchestrates calculations across all BPJS types with graceful handling of missing configurations
+
+### API Configuration Management
+Comprehensive RESTful API endpoints for BPJS settings management:
+- **GET /bpjs/settings**: List active BPJS settings for a company
+- **POST /bpjs/settings**: Create new BPJS configuration with overlap detection
+- **PATCH /bpjs/settings/{id}**: Update existing BPJS rates or caps
+- **DELETE /bpjs/settings/{id}**: Remove BPJS configuration
+
+### Payroll Integration
+Seamless integration with the payroll processing pipeline:
+- **Base Calculation**: Uses BPJS-eligible allowances from allowance aggregation
+- **Contribution Processing**: Applies rates and caps during payroll run processing
+- **Tax Coordination**: Integrates with PPh 21 calculations considering BPJS deductions
+- **Net Salary Calculation**: Incorporates BPJS deductions into final take-home pay
+
+### Frontend Interface
+User-friendly management interface for BPJS configurations with:
+- Real-time validation and error handling
+- Interactive forms for creating and editing settings
+- Visual indicators for active/inactive configurations
+- Responsive design supporting various screen sizes
 
 **Section sources**
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
-- [payroll.py:64-123](file://app/models/payroll.py#L64-L123)
-- [salary.py:62-85](file://app/models/salary.py#L62-L85)
-- [employee.py:76-112](file://app/models/employee.py#L76-L112)
-- [tax.py:19-115](file://app/models/tax.py#L19-L115)
+- [bpjs.py:22-138](file://app/calculations/bpjs.py#L22-L138)
+- [bpjs.py:17-44](file://app/models/bpjs.py#L17-L44)
+- [bpjs.py:48-171](file://app/routers/bpjs.py#L48-L171)
+- [bpjs.py:12-51](file://app/schemas/bpjs.py#L12-L51)
+- [payroll_service.py:262-378](file://app/services/payroll_service.py#L262-L378)
+- [payslip_builder.py:17-243](file://app/services/payslip_builder.py#L17-L243)
+- [page.tsx:65-190](file://frontend/src/app/(dashboard)/settings/bpjs/page.tsx#L65-L190)
 
 ## Architecture Overview
-The BPJS integration is designed around:
-- Regulatory configuration via BpjsSetting
-- Earnings and deductions that influence the BPJS base
-- Payroll computation that applies rates to the base and records per-line items
-- Employee records that track BPJS identifiers
-- Tax configuration that complements income tax processing
+The BPJS integration follows a layered architecture pattern with clear separation of concerns:
 
 ```mermaid
 classDiagram
+class BpjsConfig {
++string bpjs_type
++Decimal employee_rate
++Decimal employer_rate
++Decimal max_salary_base
+}
+class BpjsResult {
++Decimal kes_employee
++Decimal kes_employer
++Decimal jht_employee
++Decimal jht_employer
++Decimal jp_employee
++Decimal jp_employer
++Decimal jkk_employer
++Decimal jkm_employer
++total_employee() Decimal
++total_employer() Decimal
+}
+class PayrollService {
++create_payroll_run() PayrollRun
++process_payroll_run() PayrollRun
+-_process_single_employee() Payslip
+}
+class PayslipBuilder {
++build_payslip() Payslip
+-_build_lines() PayslipLine[]
+}
 class BpjsSetting {
 +int id
 +int company_id
 +string bpjs_type
-+decimal employee_rate
-+decimal employer_rate
-+decimal max_salary_base
++Decimal employee_rate
++Decimal employer_rate
++Decimal max_salary_base
 +int regulation_year
 +date effective_date
 +date end_date
 +bool is_active
 }
-class Payslip {
-+int id
-+int payroll_run_id
-+int employee_id
-+decimal basic_salary
-+decimal total_allowances
-+decimal bpjs_kes_employee
-+decimal bpjs_jht_employee
-+decimal bpjs_jp_employee
-+decimal total_deductions
-+decimal net_salary
-+text allowances_detail
-+text deductions_detail
-}
-class PayslipLine {
-+int id
-+int payslip_id
-+string line_type
-+string category
-+string description
-+decimal amount
-+int sort_order
-}
-class AllowanceType {
-+int id
-+int company_id
-+string name
-+string code
-+string calculation_type
-+bool is_bpjs_base
-+text formula_template
-}
-class Employee {
-+int id
-+int company_id
-+string employee_code
-+string full_name
-+string bpjs_kesehatan_number
-+string bpjs_ketenagakerjaan_number
-}
-BpjsSetting --> Payslip : "rates applied to base"
-AllowanceType --> Payslip : "earnings base"
-Employee --> Payslip : "employee record"
-Payslip --> PayslipLine : "line items"
+PayrollService --> BpjsConfig : "uses"
+PayrollService --> BpjsResult : "produces"
+PayslipBuilder --> BpjsResult : "consumes"
+BpjsSetting --> BpjsConfig : "maps to"
 ```
 
 **Diagram sources**
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
-- [payroll.py:64-123](file://app/models/payroll.py#L64-L123)
-- [salary.py:62-85](file://app/models/salary.py#L62-L85)
-- [employee.py:76-112](file://app/models/employee.py#L76-L112)
+- [bpjs.py:22-60](file://app/calculations/bpjs.py#L22-L60)
+- [bpjs.py:96-138](file://app/calculations/bpjs.py#L96-L138)
+- [payroll_service.py:51-378](file://app/services/payroll_service.py#L51-L378)
+- [payslip_builder.py:17-243](file://app/services/payslip_builder.py#L17-L243)
+- [bpjs.py:17-44](file://app/models/bpjs.py#L17-L44)
 
 ## Detailed Component Analysis
 
-### BPJS Settings Management
-- Purpose: Define contribution rates, employer/employee split, optional salary caps, and validity periods per BPJS program type.
-- Valid types: KESEHATAN, JHT, JP, JKK, JKM.
-- Constraints: Enforce valid types, uniqueness by company/type/effective date, and indexing for active lookups.
-- Regulatory alignment: Includes regulation year and effective/end dates for compliance.
+### BPJS Calculation Engine
+The calculation engine implements precise mathematical operations with proper decimal arithmetic:
 
-Example configuration references:
-- [BpjsSetting schema and constraints:17-43](file://app/models/bpjs.py#L17-L43)
-- [Default 2024 BPJS settings seeding:299-332](file://app/seed/seed_data.py#L299-L332)
+#### Base Calculation Algorithm
+The BPJS base is calculated as the sum of the employee's base salary and all allowances marked as BPJS-eligible. This approach ensures that only qualifying earnings contribute to social security calculations.
 
-**Section sources**
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
-- [seed_data.py:299-332](file://app/seed/seed_data.py#L299-L332)
+#### Contribution Calculation Method
+Each BPJS contribution is calculated using the formula: `rounded(min(base, max_salary_base) × rate)`. The algorithm applies the maximum salary base cap when defined, ensuring compliance with regulatory limits.
 
-### Contribution Calculation Methods
-- Base determination: Sum of earnings that count toward BPJS (e.g., basic salary and applicable allowances marked as BPJS bases).
-- Rate application: Employee and employer portions computed using configured rates per BPJS type.
-- Cap enforcement: If a maximum salary base is defined for a type, calculations cap at that value.
-- Line item recording: Deductible employee contributions are recorded on payslips and as BPJS-type line items.
-
-References:
-- [Payslip fields for BPJS contributions:73-80](file://app/models/payroll.py#L73-L80)
-- [PayslipLine line_type constraint including BPJS:119-122](file://app/models/payroll.py#L119-L122)
-- [AllowanceType.is_bpjs_base flag:72-77](file://app/models/salary.py#L72-L77)
+#### Multi-Type Support
+The system handles five distinct BPJS types with different rate structures and cap requirements:
+- **KESEHATAN**: 1% employee, 4% employer with 12,000,000 cap
+- **JHT**: 2% employee, 3.7% employer with no cap
+- **JP**: 1% employee, 2% employer with 9,559,600 annual cap
+- **JKK**: Employer-only (0.24%-1.74%) with no cap
+- **JKM**: Employer-only (0.3%) with no cap
 
 ```mermaid
 flowchart TD
-Start(["Compute BPJS Contributions"]) --> SelectBase["Select BPJS Base Amount"]
-SelectBase --> ApplyCap{"Max Salary Base Set?"}
-ApplyCap --> |Yes| CapBase["Cap Base at Max Salary"]
-ApplyCap --> |No| UseBase["Use Full Base"]
-CapBase --> CalcEmp["Multiply Base × Employee Rate"]
-UseBase --> CalcEmp
-CalcEmp --> CalcEmpr["Multiply Base × Employer Rate"]
-CalcEmpr --> RecordLines["Record BPJS Lines on Payslip"]
-RecordLines --> End(["Done"])
+Start(["BPJS Calculation Start"]) --> BaseCalc["Calculate BPJS Base"]
+BaseCalc --> CheckCap{"Has Max Salary Cap?"}
+CheckCap --> |Yes| ApplyCap["Apply Salary Cap"]
+CheckCap --> |No| NoCap["Use Full Base"]
+ApplyCap --> CalcEmployee["Calculate Employee Portion"]
+NoCap --> CalcEmployee
+CalcEmployee --> CalcEmployer["Calculate Employer Portion"]
+CalcEmployer --> RoundMoney["Round to Nearest Rupiah"]
+RoundMoney --> Result["Return BpjsResult"]
 ```
 
 **Diagram sources**
-- [payroll.py:73-80](file://app/models/payroll.py#L73-L80)
-- [payroll.py:119-122](file://app/models/payroll.py#L119-L122)
-- [salary.py:72-77](file://app/models/salary.py#L72-L77)
+- [bpjs.py:62-94](file://app/calculations/bpjs.py#L62-L94)
+- [bpjs.py:96-138](file://app/calculations/bpjs.py#L96-L138)
 
 **Section sources**
-- [payroll.py:64-123](file://app/models/payroll.py#L64-L123)
-- [salary.py:62-85](file://app/models/salary.py#L62-L85)
+- [bpjs.py:62-138](file://app/calculations/bpjs.py#L62-L138)
+- [test_bpjs.py:15-240](file://tests/test_bpjs.py#L15-L240)
 
-### Social Security Contribution Administration
-- Administration scope: Rates and caps are managed per company and effective date, enabling historical tracking and future updates.
-- Active selection: Index on company, type, and active flag supports efficient retrieval of current settings.
-- Compliance: Regulation year and effective dates ensure adherence to regulatory timelines.
+### API Configuration Management
+The BPJS configuration API provides comprehensive CRUD operations with robust validation:
 
-References:
-- [BpjsSetting indexes and constraints:33-42](file://app/models/bpjs.py#L33-L42)
+#### Validation and Constraints
+- **Type Validation**: Only predefined BPJS types are accepted
+- **Date Range Overlap Detection**: Prevents conflicting active settings
+- **Unique Constraint**: Ensures one active setting per company/type/effective_date combination
+- **Rate Validation**: Maintains reasonable rate ranges for social security contributions
 
-**Section sources**
-- [bpjs.py:33-42](file://app/models/bpjs.py#L33-L42)
-
-### Employee Benefit Tracking
-- Employee identifiers: Fields for BPJS Kesehatan and Ketenagakerjaan numbers enable tracking and reporting.
-- Payslip linkage: Employee-specific BPJS contributions are recorded on each payslip for auditability.
-
-References:
-- [Employee BPJS number fields:109-112](file://app/models/employee.py#L109-L112)
-- [Payslip BPJS fields:73-80](file://app/models/payroll.py#L73-L80)
+#### Error Handling
+The API implements comprehensive error handling with meaningful error messages:
+- Invalid BPJS type errors
+- Date range overlap conflicts
+- Not found scenarios for updates/deletes
+- Business logic violations
 
 **Section sources**
-- [employee.py:109-112](file://app/models/employee.py#L109-L112)
-- [payroll.py:73-80](file://app/models/payroll.py#L73-L80)
+- [bpjs.py:48-171](file://app/routers/bpjs.py#L48-L171)
+- [bpjs.py:12-51](file://app/schemas/bpjs.py#L12-L51)
 
-### Integration with Payroll Processing
-- PayrollRun: Batch-level metadata and totals for a payroll period.
-- Payslip: Per-employee computation of gross, deductions, taxes, and net pay, including BPJS contributions.
-- PayslipLine: Categorization of line items including BPJS entries for transparency.
+### Payroll Integration Pipeline
+The BPJS integration seamlessly fits into the payroll processing workflow:
 
-References:
-- [PayrollRun schema:19-61](file://app/models/payroll.py#L19-L61)
-- [Payslip schema:64-102](file://app/models/payroll.py#L64-L102)
-- [PayslipLine schema:105-123](file://app/models/payroll.py#L105-L123)
+#### Pre-Tax Processing
+BPJS calculations occur before income tax computation, allowing proper integration with PPh 21 calculations. The system accounts for BPJS deductions when calculating tax-deductible amounts.
 
-```mermaid
-sequenceDiagram
-participant Run as "PayrollRun"
-participant Slip as "Payslip"
-participant Line as "PayslipLine"
-participant Base as "AllowanceType/BPJS Base"
-Run->>Slip : Create per-employee payslip
-Slip->>Base : Compute BPJS base from earnings
-Slip->>Slip : Apply rates and caps per BpjsSetting
-Slip->>Line : Add BPJS deduction line items
-Slip-->>Run : Aggregate totals and net pay
-```
+#### Post-Calculation Integration
+After tax calculations, the system incorporates BPJS deductions into the final net salary computation, ensuring accurate take-home pay determination.
 
-**Diagram sources**
-- [payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [salary.py:62-85](file://app/models/salary.py#L62-L85)
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+#### Payslip Generation
+BPJS contributions are recorded as detailed line items on each payslip, providing transparency and auditability for all stakeholders.
 
 **Section sources**
-- [payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [salary.py:62-85](file://app/models/salary.py#L62-L85)
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [payroll_service.py:262-378](file://app/services/payroll_service.py#L262-L378)
+- [payslip_builder.py:17-243](file://app/services/payslip_builder.py#L17-L243)
 
-### Tax Calculations and Income Tax Alignment
-- TaxSetting defines the method (PASAL_17 or TER) used company-wide.
-- PtkpValue and TaxBracketPasal17/TerBracket define thresholds and rates for income tax computation.
-- While separate from BPJS, both systems operate within the same payslip lifecycle.
+### Frontend Management Interface
+The frontend provides an intuitive interface for BPJS configuration management:
 
-References:
-- [TaxSetting:19-34](file://app/models/tax.py#L19-L34)
-- [PtkpValue:37-60](file://app/models/tax.py#L37-L60)
-- [TaxBracketPasal17:63-85](file://app/models/tax.py#L63-L85)
-- [TerBracket:88-114](file://app/models/tax.py#L88-L114)
+#### Form Validation
+Real-time validation prevents invalid configurations with immediate feedback to users. The interface validates rate ranges, date selections, and business logic constraints.
+
+#### User Experience
+The interface supports responsive design, keyboard navigation, and accessibility features. Users can easily view, edit, and manage BPJS configurations through a clean, modern interface.
+
+#### Integration Patterns
+The frontend follows React best practices with proper state management, error boundaries, and loading states for optimal user experience.
 
 **Section sources**
-- [tax.py:19-115](file://app/models/tax.py#L19-L115)
+- [page.tsx:65-190](file://frontend/src/app/(dashboard)/settings/bpjs/page.tsx#L65-L190)
 
 ### Regulatory Compliance Features
-- Type validation: Only predefined BPJS types are permitted.
-- Uniqueness: One active setting per company/type/effective date.
-- Effective dating: Historical compliance maintained via effective/end dates and regulation year.
-- Indexing: Efficient lookup of active settings by company and type.
+The system implements comprehensive compliance mechanisms:
 
-References:
-- [BpjsSetting constraints and indexes:33-42](file://app/models/bpjs.py#L33-L42)
+#### Standard Rate Implementation
+The system uses standardized Indonesian BPJS rates aligned with current regulations:
+- KESEHATAN: 5% total (4% employer, 1% employee)
+- JHT: 5.7% total (3.7% employer, 2% employee)
+- JP: 3% total (2% employer, 1% employee)
+- JKK: Employer-only rates based on risk classification
+- JKM: Employer-only flat rate
+
+#### Historical Tracking
+Effective date management enables historical tracking of rate changes and regulatory updates. The system maintains audit trails for all configuration modifications.
+
+#### Cap Enforcement
+Salary caps are enforced automatically based on regulatory requirements, preventing overpayment and ensuring compliance with government guidelines.
 
 **Section sources**
-- [bpjs.py:33-42](file://app/models/bpjs.py#L33-L42)
+- [seed_data.py:310-344](file://app/seed/seed_data.py#L310-L344)
+- [bpjs.py:17-44](file://app/models/bpjs.py#L17-L44)
 
 ### Concrete Examples
 
-#### Example 1: BPJS Setting Configuration
-- Configure KESEHATAN with employee rate, employer rate, and maximum salary base for a company.
-- Set effective date and regulation year to align with Indonesian regulations.
-- Ensure uniqueness by company/type/effective date.
+#### Example 1: BPJS Calculation Process
+For an employee with base salary of 15,000,000 and 2,000,000 in BPJS-eligible allowances:
 
-References:
-- [BpjsSetting fields and constraints:22-31](file://app/models/bpjs.py#L22-L31)
-- [Default 2024 seeding:299-332](file://app/seed/seed_data.py#L299-L332)
+1. **Base Calculation**: 15,000,000 + 2,000,000 = 17,000,000
+2. **KESEHATAN**: min(17M, 12M) × 5% = 600,000 (600,000 employee + 2,400,000 employer)
+3. **JHT**: 17M × 5.7% = 969,000 (340,000 employee + 629,000 employer)
+4. **JP**: min(17M, 9,559,600) × 3% = 286,788 (286,788 employee + 573,576 employer)
+5. **JKK/JKM**: Applied based on risk classification and employment terms
 
-**Section sources**
-- [bpjs.py:22-31](file://app/models/bpjs.py#L22-L31)
-- [seed_data.py:299-332](file://app/seed/seed_data.py#L299-L332)
+#### Example 2: API Configuration Management
+Creating a new BPJS setting through the API:
+- Endpoint: POST /bpjs/settings
+- Validation: Checks type against allowed values
+- Conflict Detection: Verifies no overlapping active settings
+- Persistence: Creates new configuration with audit trail
 
-#### Example 2: Contribution Calculation
-- Determine BPJS base from basic salary and applicable allowances flagged as BPJS bases.
-- Apply employee and employer rates per BpjsSetting.
-- Cap at max salary base if defined.
-- Record BPJS lines on the payslip.
-
-References:
-- [Payslip BPJS fields:73-80](file://app/models/payroll.py#L73-L80)
-- [AllowanceType.is_bpjs_base:72-77](file://app/models/salary.py#L72-L77)
-- [PayslipLine BPJS type:119-122](file://app/models/payroll.py#L119-L122)
-
-**Section sources**
-- [payroll.py:73-80](file://app/models/payroll.py#L73-L80)
-- [salary.py:72-77](file://app/models/salary.py#L72-L77)
-- [payroll.py:119-122](file://app/models/payroll.py#L119-L122)
-
-#### Example 3: Benefit Enrollment Tracking
-- Store employee BPJS numbers in the Employee record.
-- Reference these numbers on the payslip for audit trails.
-
-References:
-- [Employee BPJS number fields:109-112](file://app/models/employee.py#L109-L112)
-- [Payslip fields:73-80](file://app/models/payroll.py#L73-L80)
+#### Example 3: Payroll Integration
+During payroll processing:
+- Allowance aggregation determines BPJS base
+- BPJS calculations applied before tax
+- Tax calculations adjusted for BPJS deductions
+- Final net salary computed with all deductions
 
 **Section sources**
-- [employee.py:109-112](file://app/models/employee.py#L109-L112)
-- [payroll.py:73-80](file://app/models/payroll.py#L73-L80)
-
-#### Example 4: Contribution Deduction Processing
-- Create payslip line items categorized as BPJS for employee deductions.
-- Aggregate total deductions and net pay accordingly.
-
-References:
-- [PayslipLine line_type constraint:119-122](file://app/models/payroll.py#L119-L122)
-- [Payslip totals and deductions:73-84](file://app/models/payroll.py#L73-L84)
-
-**Section sources**
-- [payroll.py:119-122](file://app/models/payroll.py#L119-L122)
-- [payroll.py:73-84](file://app/models/payroll.py#L73-L84)
+- [test_bpjs.py:146-240](file://tests/test_bpjs.py#L146-L240)
+- [payroll_service.py:301-303](file://app/services/payroll_service.py#L301-L303)
 
 ## Dependency Analysis
-- BpjsSetting depends on Base and TimestampMixin for ORM and auditing.
-- Payslip depends on PayrollRun and Employee for relationships and computation.
-- AllowanceType influences BPJS base computation and is part of the earnings aggregation.
-- Tax models are independent but integrated within the same payslip lifecycle.
+The BPJS integration creates strategic dependencies throughout the application:
 
 ```mermaid
 graph LR
-Base["Base, TimestampMixin"] --> BPJS["BpjsSetting"]
-Base --> PAY["PayrollRun, Payslip, PayslipLine"]
-Base --> SAL["AllowanceType, EmployeeAllowance, DeductionType"]
-Base --> EMP["Employee"]
-Base --> TAX["TaxSetting, PtkpValue, TaxBracketPasal17, TerBracket"]
-SAL --> PAY
-EMP --> PAY
-BPJS --> PAY
-TAX --> PAY
+DECIMAL["Decimal Arithmetic"] --> CALC["BPJS Calculations"]
+UTILS["Decimal Utils"] --> CALC
+EXCEPTIONS["BpjsCalculationError"] --> CALC
+CALC --> SERVICE["Payroll Service"]
+ALLOW["Allowance Calculations"] --> SERVICE
+SERVICE --> BUILDER["Payslip Builder"]
+MODELS["ORM Models"] --> SERVICE
+MODELS --> BUILDER
+API["BPJS API"] --> MODELS
+FRONTEND["Frontend Interface"] --> API
+SERVICE --> TAX["Tax Calculations"]
+SERVICE --> DECIMAL
 ```
 
 **Diagram sources**
-- [base.py:18-57](file://app/models/base.py#L18-L57)
-- [bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
-- [payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [salary.py:62-135](file://app/models/salary.py#L62-L135)
-- [employee.py:76-132](file://app/models/employee.py#L76-L132)
-- [tax.py:19-115](file://app/models/tax.py#L19-L115)
+- [bpjs.py:17-138](file://app/calculations/bpjs.py#L17-L138)
+- [payroll_service.py:23-31](file://app/services/payroll_service.py#L23-L31)
+- [payslip_builder.py:9-14](file://app/services/payslip_builder.py#L9-L14)
 
 **Section sources**
-- [base.py:18-57](file://app/models/base.py#L18-L57)
-- [__init__.py:17-33](file://app/models/__init__.py#L17-L33)
+- [bpjs.py:17-138](file://app/calculations/bpjs.py#L17-L138)
+- [payroll_service.py:23-31](file://app/services/payroll_service.py#L23-L31)
+- [payslip_builder.py:9-14](file://app/services/payslip_builder.py#L9-L14)
 
 ## Performance Considerations
-- Indexes on company, type, and active flag in BpjsSetting enable fast retrieval of current settings.
-- Unique constraints prevent redundant configurations and maintain data integrity.
-- Separation of concerns keeps computations modular; ensure efficient joins when aggregating earnings for BPJS base.
+The BPJS integration is optimized for performance and scalability:
 
-[No sources needed since this section provides general guidance]
+### Calculation Efficiency
+- **Pure Functions**: Mathematical operations are stateless and cacheable
+- **Decimal Precision**: Uses Decimal for exact arithmetic without floating-point errors
+- **Minimal Memory Usage**: Data classes minimize memory footprint during calculations
+
+### Database Optimization
+- **Index Strategy**: Active settings indexed by company, type, and active flag
+- **Constraint Enforcement**: Database constraints prevent invalid configurations
+- **Efficient Queries**: Single query retrieves all active settings for a company
+
+### API Performance
+- **Validation Early Exit**: API endpoints validate input before database queries
+- **Batch Operations**: Multiple settings can be processed efficiently
+- **Error Prevention**: Frontend validation reduces server load
 
 ## Troubleshooting Guide
-- Duplicate BPJS settings: Check uniqueness constraint by company/type/effective date.
-- Invalid BPJS type: Verify against allowed values (KESEHATAN, JHT, JP, JKK, JKM).
-- Missing active settings: Confirm index usage and is_active flag for current configuration.
-- Incorrect contribution amounts: Validate base earnings, rate application, and cap enforcement.
 
-References:
-- [BpjsSetting constraints and indexes:33-42](file://app/models/bpjs.py#L33-L42)
-- [PayslipLine line_type constraint:119-122](file://app/models/payroll.py#L119-L122)
+### Common Issues and Solutions
+
+#### Calculation Errors
+- **Negative Base Values**: System raises BpjsCalculationError for negative inputs
+- **Missing Configurations**: Gracefully handles missing BPJS types by returning zeros
+- **Rate Validation**: Ensures rates fall within acceptable ranges
+
+#### API Integration Problems
+- **Overlap Conflicts**: Date range overlap detection prevents conflicting settings
+- **Type Validation**: Invalid BPJS types rejected with clear error messages
+- **Not Found Scenarios**: Proper HTTP 404 responses for missing resources
+
+#### Payroll Processing Issues
+- **Configuration Loading**: Validates BPJS settings during payroll run creation
+- **Integration Points**: Ensures proper sequencing between calculations
+- **Audit Trail**: Maintains complete transaction history for debugging
 
 **Section sources**
-- [bpjs.py:33-42](file://app/models/bpjs.py#L33-L42)
-- [payroll.py:119-122](file://app/models/payroll.py#L119-L122)
+- [bpjs.py:114-119](file://app/calculations/bpjs.py#L114-L119)
+- [bpjs.py:74-93](file://app/calculations/bpjs.py#L74-L93)
+- [bpjs.py:20-44](file://app/routers/bpjs.py#L20-L44)
 
 ## Conclusion
-The BPJS integration provides a structured, compliant framework for managing social security contributions. It separates regulatory configuration from computation, integrates with payroll and tax systems, and maintains auditability through explicit line items and employee identifiers. The design supports historical tracking, active setting selection, and scalable extension for additional BPJS types or regulatory changes.
+The comprehensive BPJS integration provides a robust, compliant, and scalable solution for social security contribution management. The system's pure calculation engine ensures mathematical precision, while the layered architecture supports maintainability and extensibility. Integration with payroll processing, tax calculations, and employee benefits creates a unified financial management platform that meets Indonesian regulatory requirements while providing excellent user experience.
 
-[No sources needed since this section summarizes without analyzing specific files]
+The implementation demonstrates best practices in financial software development, including proper error handling, comprehensive validation, audit trails, and user-friendly interfaces. The system is prepared for future enhancements and regulatory changes while maintaining backward compatibility.
 
 ## Appendices
 
-### Appendix A: Database Initialization
-- Initializes all tables including BPJS settings, payroll, salary, and tax models.
-
-References:
-- [Database initialization:56-63](file://app/database.py#L56-L63)
-- [Model package exports:17-68](file://app/models/__init__.py#L17-L68)
+### Appendix A: Default Configuration
+The system seeds default BPJS configurations aligned with 2024 Indonesian regulations, providing immediate functionality for new installations.
 
 **Section sources**
-- [database.py:56-63](file://app/database.py#L56-L63)
-- [__init__.py:17-68](file://app/models/__init__.py#L17-L68)
+- [seed_data.py:310-344](file://app/seed/seed_data.py#L310-L344)
+
+### Appendix B: Testing Framework
+Comprehensive unit tests validate calculation accuracy, error handling, and edge cases across all BPJS types and scenarios.
+
+**Section sources**
+- [test_bpjs.py:1-240](file://tests/test_bpjs.py#L1-L240)
+
+### Appendix C: Frontend Components
+The React-based frontend provides intuitive management interfaces with real-time validation and responsive design.
+
+**Section sources**
+- [page.tsx:65-190](file://frontend/src/app/(dashboard)/settings/bpjs/page.tsx#L65-L190)

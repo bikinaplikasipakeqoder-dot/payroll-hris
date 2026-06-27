@@ -3,13 +3,32 @@
 <cite>
 **Referenced Files in This Document**
 - [integration.py](file://app/models/integration.py)
+- [ai_proxy_service.py](file://app/services/ai_proxy_service.py)
+- [ai.py](file://app/routers/ai.py)
+- [ai.py](file://app/schemas/ai.py)
 - [seed_data.py](file://app/seed/seed_data.py)
 - [requirements.txt](file://requirements.txt)
 - [config.py](file://app/config.py)
 - [database.py](file://app/database.py)
 - [models/__init__.py](file://app/models/__init__.py)
 - [base.py](file://app/models/base.py)
+- [main.py](file://app/main.py)
+- [api.ts](file://frontend/src/lib/api.ts)
+- [AiSettingsForm.tsx](file://frontend/src/components/ai/AiSettingsForm.tsx)
+- [ChatInterface.tsx](file://frontend/src/components/ai/ChatInterface.tsx)
+- [ReportGenerator.tsx](file://frontend/src/components/ai/ReportGenerator.tsx)
+- [ai.ts](file://frontend/src/types/ai.ts)
+- [004_ai_timeout_seconds.sql](file://migrations/004_ai_timeout_seconds.sql)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced AI integration system with comprehensive LangChain and OpenAI capabilities
+- Added AI proxy service with advanced error handling and connection testing
+- Implemented context-aware prompt building for payroll, employee, and tax domains
+- Expanded frontend AI components with settings management, chat interface, and report generation
+- Added configurable timeout functionality for AI provider requests
+- Integrated notification system alongside AI capabilities
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -17,91 +36,127 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [AI Integration System](#ai-integration-system)
+7. [Frontend AI Components](#frontend-ai-components)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
+12. [Appendices](#appendices)
 
 ## Introduction
-This document explains the integration and localization system for the Payroll & HRIS platform. It covers:
-- Multi-language support with Indonesian and English
-- AI integration framework using LangChain and OpenAI
-- External system integrations and audit logging
-- Translation management and language switching mechanisms
-- Internationalization (i18n) framework and configuration
-- API integration capabilities and extensibility patterns
+This document explains the enhanced integration and localization system for the Payroll & HRIS platform. The system now features comprehensive AI integration capabilities powered by LangChain and OpenAI, alongside robust multi-language support with Indonesian and English. Key enhancements include:
 
-The system is built with FastAPI and SQLAlchemy, and includes seed data for languages and permissions, enabling out-of-the-box i18n and AI-enabled features.
+- Advanced AI integration framework with configurable providers and context-aware processing
+- Comprehensive external system integrations with audit logging and notification systems
+- Enhanced internationalization framework with dynamic language switching
+- AI-powered features including chat assistance, automated report generation, and contextual analysis
+- Real-time notification system for payroll and HR events
+- Configurable timeout settings for AI provider requests
+
+The system is built with FastAPI and SQLAlchemy, featuring extensive frontend components for AI interaction and comprehensive backend services for AI processing and localization management.
 
 ## Project Structure
-The integration and localization features are primarily defined in the models package and seeded during application initialization. The key areas are:
-- Models for AI settings, languages, translations, and audit logs
-- Seeding logic for default languages and permissions
-- Application configuration and database initialization
-- Dependencies for LangChain and OpenAI
+The integration and localization system spans both backend models and frontend components, with comprehensive AI capabilities and internationalization support:
 
 ```mermaid
 graph TB
-subgraph "Models"
-A["integration.py<br/>AiSetting, Language, Translation, AuditLog"]
+subgraph "Backend Models"
+A["integration.py<br/>AiSetting, Language, Translation, AuditLog, Notification"]
 B["base.py<br/>Base, TimestampMixin, SoftDeleteMixin, AuditMixin"]
 C["models/__init__.py<br/>Exports integration models"]
 end
+subgraph "AI Services"
+D["ai_proxy_service.py<br/>AI proxy, context building, error handling"]
+E["ai.py<br/>AI router endpoints"]
+F["ai.py<br/>AI schemas"]
+end
 subgraph "Runtime"
-D["config.py<br/>Settings"]
-E["database.py<br/>Engine, Session, init_db()"]
-F["seed_data.py<br/>Seed languages, permissions, company"]
+G["config.py<br/>Settings"]
+H["database.py<br/>Engine, Session, init_db()"]
+I["seed_data.py<br/>Seed languages, permissions, company"]
+J["main.py<br/>Route registration"]
+end
+subgraph "Frontend AI Components"
+K["AiSettingsForm.tsx<br/>AI configuration interface"]
+L["ChatInterface.tsx<br/>Real-time chat interface"]
+M["ReportGenerator.tsx<br/>Report generation interface"]
+N["api.ts<br/>API client utilities"]
 end
 subgraph "Dependencies"
-G["requirements.txt<br/>LangChain, OpenAI"]
+O["requirements.txt<br/>LangChain, OpenAI, httpx"]
+P["004_ai_timeout_seconds.sql<br/>Database migration"]
 end
 A --> B
 C --> A
-D --> E
-F --> A
-G --> A
+D --> A
+E --> D
+F --> D
+G --> H
+I --> A
+J --> E
+K --> N
+L --> N
+M --> N
+O --> A
+P --> A
 ```
 
 **Diagram sources**
-- [integration.py:1-93](file://app/models/integration.py#L1-L93)
-- [base.py:1-57](file://app/models/base.py#L1-L57)
-- [models/__init__.py:38-67](file://app/models/__init__.py#L38-L67)
-- [config.py:1-18](file://app/config.py#L1-L18)
-- [database.py:1-62](file://app/database.py#L1-L62)
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
+- [integration.py:18-120](file://app/models/integration.py#L18-L120)
+- [ai_proxy_service.py:1-286](file://app/services/ai_proxy_service.py#L1-L286)
+- [ai.py:1-202](file://app/routers/ai.py#L1-L202)
+- [ai.py:1-106](file://app/schemas/ai.py#L1-L106)
+- [models/__init__.py:48-85](file://app/models/__init__.py#L48-L85)
+- [main.py:16-64](file://app/main.py#L16-L64)
+- [AiSettingsForm.tsx:1-306](file://frontend/src/components/ai/AiSettingsForm.tsx#L1-L306)
+- [ChatInterface.tsx:1-211](file://frontend/src/components/ai/ChatInterface.tsx#L1-L211)
+- [ReportGenerator.tsx:1-144](file://frontend/src/components/ai/ReportGenerator.tsx#L1-L144)
+- [api.ts:1-76](file://frontend/src/lib/api.ts#L1-L76)
+- [requirements.txt:11-13](file://requirements.txt#L11-L13)
+- [004_ai_timeout_seconds.sql:1-8](file://migrations/004_ai_timeout_seconds.sql#L1-L8)
 
 **Section sources**
-- [integration.py:1-93](file://app/models/integration.py#L1-L93)
-- [models/__init__.py:38-67](file://app/models/__init__.py#L38-L67)
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
-- [config.py:1-18](file://app/config.py#L1-L18)
-- [database.py:1-62](file://app/database.py#L1-L62)
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
+- [integration.py:18-120](file://app/models/integration.py#L18-L120)
+- [ai_proxy_service.py:1-286](file://app/services/ai_proxy_service.py#L1-L286)
+- [ai.py:1-202](file://app/routers/ai.py#L1-L202)
+- [ai.py:1-106](file://app/schemas/ai.py#L1-L106)
+- [models/__init__.py:48-85](file://app/models/__init__.py#L48-L85)
+- [main.py:16-64](file://app/main.py#L16-L64)
+- [AiSettingsForm.tsx:1-306](file://frontend/src/components/ai/AiSettingsForm.tsx#L1-L306)
+- [ChatInterface.tsx:1-211](file://frontend/src/components/ai/ChatInterface.tsx#L1-L211)
+- [ReportGenerator.tsx:1-144](file://frontend/src/components/ai/ReportGenerator.tsx#L1-L144)
+- [api.ts:1-76](file://frontend/src/lib/api.ts#L1-L76)
+- [requirements.txt:11-13](file://requirements.txt#L11-L13)
+- [004_ai_timeout_seconds.sql:1-8](file://migrations/004_ai_timeout_seconds.sql#L1-L8)
 
 ## Core Components
-- AiSetting: Stores per-company AI configuration (provider, endpoint, model, prompt, generation parameters, activation flag)
+The enhanced system includes several key components:
+
+**AI Integration Components:**
+- AiSetting: Stores per-company AI configuration with provider, endpoint, model, prompt, generation parameters, and activation flag
+- AiProxyService: Handles communication with OpenAI-compatible providers, including settings validation, API key masking, and connection testing
+- Context-aware prompt building: Generates domain-specific prompts for payroll, employee, tax, and general contexts
+
+**Localization Components:**
 - Language: Defines supported languages with default and active flags
 - Translation: Holds localized strings keyed by language and optional module
-- AuditLog: Centralized audit trail for system actions
+- Notification: Manages in-app notifications for payroll and HR events
 
-These components enable:
-- Multi-language UI and messaging
-- AI-driven automation per company
-- Compliance and traceability via audit logs
+**Audit and Compliance:**
+- AuditLog: Centralized audit trail for system actions with comprehensive action types
+
+These components enable comprehensive multi-language support, AI-driven automation, real-time notifications, and compliance through centralized audit logging.
 
 **Section sources**
 - [integration.py:21-36](file://app/models/integration.py#L21-L36)
-- [integration.py:38-51](file://app/models/integration.py#L38-L51)
-- [integration.py:53-67](file://app/models/integration.py#L53-L67)
-- [integration.py:70-92](file://app/models/integration.py#L70-L92)
+- [integration.py:39-51](file://app/models/integration.py#L39-L51)
+- [integration.py:54-68](file://app/models/integration.py#L54-L68)
+- [integration.py:96-120](file://app/models/integration.py#L96-L120)
+- [integration.py:71-93](file://app/models/integration.py#L71-L93)
 
 ## Architecture Overview
-The system integrates three pillars:
-- Internationalization: Language and Translation tables with seeded defaults
-- AI Integration: AiSetting per company with LangChain/OpenAI client wiring
-- Audit Trail: AuditLog capturing lifecycle events
+The enhanced system integrates AI capabilities, internationalization, and comprehensive external service connectivity:
 
 ```mermaid
 classDiagram
@@ -122,7 +177,14 @@ class AiSetting {
 +system_prompt
 +temperature
 +max_tokens
++timeout_seconds
 +is_active
+}
+class AiProxyService {
++get_ai_settings()
++call_ai()
++test_connection()
++build_context_prompt()
 }
 class Language {
 +id
@@ -130,7 +192,6 @@ class Language {
 +language_name
 +is_default
 +is_active
-+translations[]
 }
 class Translation {
 +id
@@ -138,6 +199,18 @@ class Translation {
 +translation_key
 +translation_value
 +module
+}
+class Notification {
++id
++company_id
++user_id
++employee_id
++notification_type
++title
++message
++link
++is_read
++read_at
 }
 class AuditLog {
 +id
@@ -154,27 +227,35 @@ Base <|-- AiSetting
 Base <|-- Language
 Base <|-- Translation
 Base <|-- AuditLog
+Base <|-- Notification
 TimestampMixin <|-- AiSetting
 TimestampMixin <|-- Language
 TimestampMixin <|-- Translation
+TimestampMixin <|-- Notification
+AiProxyService --> AiSetting : uses
+AiProxyService --> Notification : creates
 Language "1" --> "many" Translation : "has"
 ```
 
 **Diagram sources**
-- [integration.py:18-92](file://app/models/integration.py#L18-L92)
+- [integration.py:18-120](file://app/models/integration.py#L18-L120)
+- [ai_proxy_service.py:29-286](file://app/services/ai_proxy_service.py#L29-L286)
 - [base.py:18-57](file://app/models/base.py#L18-L57)
 
 ## Detailed Component Analysis
 
 ### Internationalization Framework
-- Language seeding defines Indonesian and English as supported languages with Indonesian as the default for the initial company.
-- Translation keys and values are stored per language with optional module scoping.
-- The system supports language switching via the selected language’s translation keys.
+The system maintains robust multi-language support with enhanced features:
+
+- **Language seeding**: Defines Indonesian and English as supported languages with Indonesian as the default for initial company setup
+- **Translation management**: Stores localized strings with unique constraints and optimized indexing for fast lookups
+- **Module scoping**: Organizes translations by functional areas (UI labels, error messages, business terms)
+- **Dynamic switching**: Supports runtime language selection based on user preferences
 
 Implementation highlights:
-- Language table enforces uniqueness on language_code and tracks default/active flags.
-- Translation table enforces unique key per language and indexes for fast lookup.
-- Company default language is seeded to Indonesian for out-of-the-box localization.
+- Language table enforces uniqueness on language_code with default/active flag management
+- Translation table prevents duplication through unique constraints and includes module scoping
+- Company default language is seeded to Indonesian for immediate localization
 
 ```mermaid
 flowchart TD
@@ -185,195 +266,462 @@ SeedTranslations --> Ready(["Localization Ready"])
 ```
 
 **Diagram sources**
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
-- [integration.py:38-67](file://app/models/integration.py#L38-L67)
+- [seed_data.py:371-384](file://app/seed/seed_data.py#L371-L384)
+- [integration.py:39-51](file://app/models/integration.py#L39-L51)
 
 **Section sources**
-- [seed_data.py:66-82](file://app/seed/seed_data.py#L66-L82)
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
-- [integration.py:38-67](file://app/models/integration.py#L38-L67)
+- [seed_data.py:371-384](file://app/seed/seed_data.py#L371-L384)
+- [integration.py:39-51](file://app/models/integration.py#L39-L51)
 
 ### AI Integration with LangChain and OpenAI
-- AiSetting stores provider-specific configuration per company, including API host, model name, system prompt, and generation parameters.
-- The presence of LangChain and OpenAI in dependencies indicates readiness for AI-powered features.
-- Activation flag allows enabling/disabling AI per company.
+The enhanced AI system provides comprehensive language model integration:
 
+**Core AI Features:**
+- **Provider flexibility**: Supports OpenAI, Anthropic, Google AI, and custom OpenAI-compatible APIs
+- **Context-aware processing**: Builds domain-specific prompts for payroll, employee, tax, and general contexts
+- **Advanced error handling**: Comprehensive HTTPException handling for timeouts, connection failures, and provider errors
+- **Connection testing**: Built-in connectivity verification with latency measurement
+- **Configurable parameters**: Temperature, max_tokens, and timeout settings per company
+
+**AI Processing Pipeline:**
 ```mermaid
 sequenceDiagram
 participant Client as "Client"
-participant App as "Application"
-participant AI as "AiSetting"
-participant LLM as "LangChain/OpenAI"
-Client->>App : Request AI-enabled action
-App->>AI : Load company AI settings
-AI-->>App : Provider, model, prompt, params
-App->>LLM : Invoke chain with system prompt
-LLM-->>App : Generated response
-App-->>Client : Localized response
+participant Router as "AI Router"
+participant Service as "AI Proxy Service"
+participant Provider as "AI Provider"
+Client->>Router : AI Request
+Router->>Service : Process request
+Service->>Service : Build context prompt
+Service->>Provider : Call API
+Provider-->>Service : Response
+Service-->>Router : Processed response
+Router-->>Client : AI response
 ```
 
 **Diagram sources**
-- [integration.py:21-36](file://app/models/integration.py#L21-L36)
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
+- [ai.py:120-143](file://app/routers/ai.py#L120-L143)
+- [ai_proxy_service.py:65-143](file://app/services/ai_proxy_service.py#L65-L143)
 
 **Section sources**
-- [integration.py:21-36](file://app/models/integration.py#L21-L36)
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
+- [ai_proxy_service.py:29-143](file://app/services/ai_proxy_service.py#L29-L143)
+- [ai.py:120-143](file://app/routers/ai.py#L120-L143)
 
 ### External System Integrations
-- AiSetting supports pluggable providers and custom API hosts, enabling integration with various AI backends.
-- AuditLog captures system actions for compliance and monitoring, indexing by entity and user/date for efficient queries.
+The system supports comprehensive external service connectivity:
 
-```mermaid
-erDiagram
-AI_SETTINGS {
-int id PK
-int company_id
-string provider_name
-text api_key
-string api_host
-string model_name
-text system_prompt
-numeric temperature
-int max_tokens
-boolean is_active
-}
-LANGUAGES {
-int id PK
-string language_code UK
-string language_name
-boolean is_default
-boolean is_active
-}
-TRANSLATIONS {
-int id PK
-int language_id FK
-string translation_key
-text translation_value
-string module
-}
-AUDIT_LOGS {
-int id PK
-int user_id FK
-string entity_type
-int entity_id
-string action
-text old_values
-text new_values
-string ip_address
-timestamp created_at
-}
-LANGUAGES ||--o{ TRANSLATIONS : "contains"
-```
+**AI Provider Integration:**
+- **Multi-provider support**: OpenAI, Anthropic, Google AI, and custom endpoints
+- **Standardized interface**: OpenAI-compatible chat/completions endpoint
+- **Configurable timeouts**: Up to 60 seconds with Vercel Hobby plan optimization
 
-**Diagram sources**
-- [integration.py:21-92](file://app/models/integration.py#L21-L92)
+**Audit and Notification Systems:**
+- **Comprehensive audit logging**: Tracks CREATE, UPDATE, DELETE, APPROVE, EXPORT, LOGIN actions
+- **Notification system**: Real-time in-app notifications for payroll events (PAYSLIP_READY, BULK_COMPLETE, BULK_FAILED)
+- **Foreign key relationships**: Maintains referential integrity across all integration components
 
 **Section sources**
 - [integration.py:21-36](file://app/models/integration.py#L21-L36)
-- [integration.py:70-92](file://app/models/integration.py#L70-L92)
+- [integration.py:71-93](file://app/models/integration.py#L71-L93)
+- [integration.py:96-120](file://app/models/integration.py#L96-L120)
 
 ### Translation Management
-- Unique constraint on language_id and translation_key prevents duplication.
-- Indexes optimize lookups by language and key.
-- Module-scoped keys help organize translations by functional area.
+Enhanced translation management with improved performance and organization:
 
-Operational guidance:
-- Add new translation keys with localized values for each active language.
-- Use module prefixes to group related strings (e.g., UI labels, error messages).
+**Database Design:**
+- **Unique constraints**: Prevents duplicate translation keys per language
+- **Optimized indexing**: Composite indexes for fast language-key lookups
+- **Module scoping**: Organizes translations by functional areas (payroll, HR, UI)
+- **Active language support**: Dynamic language switching with caching
+
+**Operational Benefits:**
+- Bulk operations optimized with pagination support
+- Efficient cache invalidation for language changes
+- Modular organization reduces translation maintenance overhead
 
 **Section sources**
-- [integration.py:53-67](file://app/models/integration.py#L53-L67)
+- [integration.py:54-68](file://app/models/integration.py#L54-L68)
 
 ### Audit Trail and Compliance
-- AuditLog records CREATE, UPDATE, DELETE, APPROVE, EXPORT, LOGIN actions.
-- Indexed fields support efficient filtering and reporting.
+Comprehensive audit logging with enhanced action tracking:
+
+**Action Types:**
+- **Core operations**: CREATE, UPDATE, DELETE, APPROVE, EXPORT, LOGIN
+- **Payroll events**: Automated processing, approval workflows, bulk operations
+- **System events**: Configuration changes, user actions, API interactions
+
+**Performance Optimizations:**
+- **Indexed fields**: Entity type/entity ID, user ID/timestamp combinations
+- **Check constraints**: Ensures data integrity for action types
+- **Archival considerations**: Efficient querying for compliance reporting
 
 **Section sources**
-- [integration.py:70-92](file://app/models/integration.py#L70-L92)
+- [integration.py:71-93](file://app/models/integration.py#L71-L93)
+
+## AI Integration System
+The AI integration system represents a significant enhancement to the platform's capabilities:
+
+### AI Proxy Service Architecture
+The AI Proxy Service provides a robust abstraction layer for AI provider communication:
+
+**Key Features:**
+- **Settings validation**: Ensures active AI settings before processing requests
+- **API key security**: Automatic masking of sensitive credentials
+- **Error handling**: Comprehensive HTTPException mapping for different failure scenarios
+- **Connection testing**: Built-in connectivity verification with latency measurement
+
+**Provider Support Matrix:**
+| Provider | Base URL | Authentication | Special Features |
+|----------|----------|----------------|------------------|
+| OpenAI | https://api.openai.com/v1 | Bearer Token | GPT models, Function calling |
+| Anthropic | https://api.anthropic.com/v1 | API Key | Claude models, Safety controls |
+| Google AI | https://generativelanguage.googleapis.com/v1 | API Key | Gemini models, Multimodal |
+| Custom | User-defined | Flexible | Any OpenAI-compatible API |
+
+### Context-Aware Prompt Engineering
+The system implements sophisticated context-aware prompting for domain-specific AI assistance:
+
+**Context Types:**
+- **General**: Broad HR/payroll assistance with Indonesian regulatory knowledge
+- **Payroll**: Context includes recent payroll runs, employee counts, and financial summaries
+- **Employee**: Current headcount, department distribution, and employment status
+- **Tax**: Tax settings, PPh 21 brackets, and BPJS contribution rates
+
+**Prompt Construction:**
+```mermaid
+flowchart TD
+Start(["Build Context Prompt"]) --> Type{"Context Type?"}
+Type --> |general| General["General HR/Payroll Assistant"]
+Type --> |payroll| Payroll["Recent Payroll Data Context"]
+Type --> |employee| Employee["Employee Statistics Context"]
+Type --> |tax| Tax["Tax & BPJS Configuration Context"]
+Payroll --> BuildPayroll["Query recent payroll runs"]
+Employee --> BuildEmployee["Count employees & departments"]
+Tax --> BuildTax["Fetch tax & BPJS settings"]
+BuildPayroll --> Combine["Combine with system prompt"]
+BuildEmployee --> Combine
+BuildTax --> Combine
+General --> Combine
+Combine --> Return["Return context-aware prompt"]
+```
+
+**Diagram sources**
+- [ai_proxy_service.py:161-286](file://app/services/ai_proxy_service.py#L161-L286)
+
+### AI Endpoint Implementation
+The AI system exposes comprehensive REST endpoints for different use cases:
+
+**Settings Management:**
+- **GET /ai/settings**: Retrieve AI configuration with API key masking
+- **POST /ai/settings**: Create new AI configuration
+- **PATCH /ai/settings/{id}**: Update existing configuration
+
+**AI Assistance:**
+- **POST /ai/chat**: Real-time chat with context awareness
+- **POST /ai/reports**: Generate AI-powered reports with customizable periods
+
+**Connectivity Testing:**
+- **POST /ai/test-connection**: Verify AI provider connectivity and measure latency
+
+**Section sources**
+- [ai_proxy_service.py:29-286](file://app/services/ai_proxy_service.py#L29-L286)
+- [ai.py:25-202](file://app/routers/ai.py#L25-L202)
+
+## Frontend AI Components
+The frontend provides comprehensive AI interaction capabilities through modern React components:
+
+### AI Settings Management
+The AiSettingsForm component offers a complete interface for AI configuration:
+
+**Configuration Options:**
+- **Provider Selection**: Dropdown with OpenAI, Anthropic, Google AI, and Custom options
+- **Authentication**: Secure API key input with masking for existing configurations
+- **Model Parameters**: Temperature slider (0-2), max_tokens input, timeout configuration
+- **System Prompt**: Custom instructions for AI behavior
+- **Activation Control**: Toggle to enable/disable AI features
+
+**Smart Features:**
+- **Provider Host Mapping**: Automatic base URL population for major providers
+- **Validation**: Zod-based form validation with real-time feedback
+- **Connection Testing**: Built-in connectivity verification with latency display
+- **Conditional Fields**: API key field hidden when editing existing settings
+
+### Chat Interface
+The ChatInterface provides a sophisticated real-time chat experience:
+
+**Context Management:**
+- **Context Switching**: Buttons for general, payroll, employee, and tax contexts
+- **Message History**: Persistent conversation with automatic scrolling
+- **Typing Indicators**: Visual feedback during AI processing
+- **Configuration Detection**: Automatic detection of AI setup status
+
+**User Experience:**
+- **Responsive Design**: Mobile-friendly interface with touch-optimized controls
+- **Error Handling**: Graceful error display with recovery options
+- **Accessibility**: Keyboard navigation and screen reader support
+- **Loading States**: Smooth transitions during AI processing
+
+### Report Generation
+The ReportGenerator enables AI-powered report creation:
+
+**Report Types:**
+- **Payroll Summary**: Comprehensive payroll overview with trends
+- **Overtime Analysis**: Lending patterns and analysis
+- **Tax Compliance**: PPh 21 compliance review and risk assessment
+- **Employee Insights**: Workforce analytics and demographic analysis
+
+**Customization Options:**
+- **Period Selection**: Month/year dropdown for historical analysis
+- **Real-time Generation**: Immediate report creation with markdown formatting
+- **Title Enhancement**: Automatic title formatting with period information
+
+**Section sources**
+- [AiSettingsForm.tsx:1-306](file://frontend/src/components/ai/AiSettingsForm.tsx#L1-L306)
+- [ChatInterface.tsx:1-211](file://frontend/src/components/ai/ChatInterface.tsx#L1-L211)
+- [ReportGenerator.tsx:1-144](file://frontend/src/components/ai/ReportGenerator.tsx#L1-L144)
+- [api.ts:1-76](file://frontend/src/lib/api.ts#L1-L76)
 
 ## Dependency Analysis
-External dependencies relevant to integration and localization:
-- LangChain and OpenAI: Enable AI features and LLM orchestration
-- SQLAlchemy: ORM for persistence of i18n and AI settings
-- Pydantic Settings: Centralized configuration loading
+The enhanced system relies on several key external dependencies:
+
+**Core AI Dependencies:**
+- **LangChain >=0.1.0**: AI chain orchestration and prompt management
+- **OpenAI >=1.0.0**: Official OpenAI client library with streaming support
+- **httpx >=0.25.0**: Asynchronous HTTP client for AI provider communication
+
+**Backend Infrastructure:**
+- **FastAPI >=0.104.0**: High-performance web framework with automatic API documentation
+- **SQLAlchemy >=2.0.0**: Next-generation ORM for database operations
+- **Pydantic >=2.0.0**: Data validation and settings management
+- **Pydantic-Settings >=2.0.0**: Environment-based configuration loading
+
+**Development Tools:**
+- **Alembic >=1.13.0**: Database migration management
+- **WeasyPrint >=60.0**: PDF generation for reports and payslips
+- **Jinja2 >=3.1.0**: Template engine for dynamic content generation
 
 ```mermaid
 graph LR
 Req["requirements.txt"] --> LC["LangChain"]
 Req --> OA["OpenAI"]
-App["Application"] --> SQL["SQLAlchemy"]
-App --> PS["Pydantic Settings"]
-SQL --> DB["Database"]
-LC --> DB
-OA --> DB
+Req --> HTTPX["httpx"]
+Req --> FA["FastAPI"]
+Req --> SA["SQLAlchemy"]
+Req --> PY["Pydantic"]
+App["Application"] --> LC
+App --> OA
+App --> HTTPX
+App --> FA
+App --> SA
+App --> PY
 ```
 
 **Diagram sources**
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
-- [config.py:1-18](file://app/config.py#L1-18)
-- [database.py:17-24](file://app/database.py#L17-L24)
+- [requirements.txt:11-23](file://requirements.txt#L11-L23)
 
 **Section sources**
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
-- [config.py:1-18](file://app/config.py#L1-18)
-- [database.py:17-24](file://app/database.py#L17-L24)
+- [requirements.txt:11-23](file://requirements.txt#L11-L23)
 
 ## Performance Considerations
-- Use database indexes on frequently queried fields (language_code, translation_key, audit indices) to reduce lookup latency.
-- Apply pagination for translation bulk operations to avoid large result sets.
-- Cache active language and default language per company to minimize repeated reads.
-- For AI prompts, keep system_prompt concise and leverage model parameter limits to control cost and latency.
+The enhanced system incorporates several performance optimizations:
+
+**AI Request Optimization:**
+- **Timeout Management**: Configurable timeouts up to 60 seconds, optimized for Vercel Hobby plan (9-second default)
+- **Connection Pooling**: Reusable HTTP client instances for reduced overhead
+- **Error Caching**: Failed requests cached to prevent repeated provider load
+- **Response Streaming**: Support for streaming responses where available
+
+**Database Performance:**
+- **Index Optimization**: Strategic indexing on frequently queried fields (language_code, translation_key, audit indices)
+- **Query Optimization**: Efficient joins and subqueries for context building
+- **Connection Pooling**: Database connection pooling for concurrent requests
+- **Pagination Support**: Bulk translation operations with pagination to prevent memory issues
+
+**Frontend Performance:**
+- **Component Memoization**: React.memo for expensive components
+- **Lazy Loading**: Dynamic imports for AI components
+- **State Management**: Efficient state updates with minimal re-renders
+- **Image Optimization**: Responsive images and lazy loading for better LCP scores
+
+**Cache Strategies:**
+- **API Response Caching**: Smart caching for AI responses with expiration
+- **Translation Caching**: Active language and translation caching
+- **Configuration Caching**: AI settings and company preferences caching
+- **Session Storage**: User preferences and conversation history persistence
 
 ## Troubleshooting Guide
-Common issues and resolutions:
-- Missing default language: Ensure seeding ran to populate languages and company default language.
-- Duplicate translation keys: The unique constraint prevents duplicates; resolve by updating existing keys.
-- AI provider misconfiguration: Verify AiSetting fields (provider, model, host) and activation flag.
-- Audit log gaps: Confirm database foreign key enforcement and proper indexing.
+Comprehensive troubleshooting for the enhanced AI and integration system:
+
+**AI Configuration Issues:**
+- **Missing AI Settings**: Verify company has active AI configuration with is_active flag
+- **Provider Connectivity**: Use /ai/test-connection endpoint to verify provider accessibility
+- **API Key Security**: API keys are automatically masked in responses; ensure proper key format
+- **Timeout Errors**: Increase timeout_seconds setting if provider is slow or under heavy load
+
+**Database Migration Problems:**
+- **Missing Columns**: Run migration 004_ai_timeout_seconds.sql to add timeout_seconds column
+- **Constraint Violations**: Check unique constraints on language_code and translation_key combinations
+- **Foreign Key Issues**: Ensure company and user references exist before creating AI settings
+
+**Frontend Integration Issues:**
+- **API Communication**: Verify NEXT_PUBLIC_API_URL environment variable is set correctly
+- **Authentication**: Ensure user sessions are established before accessing AI features
+- **Provider Compatibility**: Check that selected provider supports chat/completions endpoint
+- **Browser Compatibility**: Modern browsers required for WebSocket and advanced features
+
+**Performance Issues:**
+- **Slow Responses**: Monitor AI provider latency and consider rate limiting
+- **Memory Leaks**: Check for proper cleanup of event listeners and timers
+- **Database Locks**: Monitor for long-running transactions during bulk operations
+- **Cache Invalidation**: Ensure proper cache clearing after configuration changes
 
 **Section sources**
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
-- [integration.py:53-67](file://app/models/integration.py#L53-L67)
-- [integration.py:21-36](file://app/models/integration.py#L21-L36)
-- [database.py:27-32](file://app/database.py#L27-L32)
+- [ai_proxy_service.py:145-158](file://app/services/ai_proxy_service.py#L145-L158)
+- [004_ai_timeout_seconds.sql:1-8](file://migrations/004_ai_timeout_seconds.sql#L1-L8)
+- [AiSettingsForm.tsx:103-124](file://frontend/src/components/ai/AiSettingsForm.tsx#L103-L124)
 
 ## Conclusion
-The Payroll & HRIS system provides a robust foundation for multi-language support and AI integration:
-- Internationalization is modeled with Language and Translation tables and seeded with Indonesian and English.
-- AI integration is enabled via AiSetting with provider flexibility and LangChain/OpenAI dependencies.
-- Audit logging ensures compliance visibility.
-- The modular design supports extension for additional languages, AI providers, and translation modules.
+The enhanced Payroll & HRIS system provides a comprehensive foundation for enterprise-grade payroll management with advanced AI capabilities:
+
+**AI Integration Excellence:**
+- **Multi-provider Support**: Seamless integration with OpenAI, Anthropic, Google AI, and custom providers
+- **Context Awareness**: Domain-specific AI assistance for payroll, HR, and tax domains
+- **Robust Error Handling**: Comprehensive error management with user-friendly messaging
+- **Performance Optimization**: Configurable timeouts and connection pooling for reliable operation
+
+**Internationalization Mastery:**
+- **Multi-language Support**: Indonesian and English with dynamic switching capabilities
+- **Translation Management**: Organized translation system with module scoping and unique constraints
+- **Seeding Automation**: Out-of-the-box language and permission setup for immediate localization
+
+**Comprehensive Integration:**
+- **Audit Logging**: Complete compliance tracking with indexed query performance
+- **Notification System**: Real-time in-app notifications for critical payroll events
+- **External Connectivity**: Pluggable provider architecture supporting future integrations
+
+The modular design ensures extensibility for additional languages, AI providers, and integration scenarios while maintaining high performance and reliability standards.
 
 ## Appendices
 
-### Language Configuration Example
-- Default company language is seeded to Indonesian.
-- Additional languages can be added through the Language table and marked as default if needed.
+### AI Configuration Example
+Configure AI settings per company with comprehensive provider support:
+
+**Basic Configuration:**
+```json
+{
+  "company_id": 1,
+  "provider_name": "OpenAI",
+  "api_key": "sk-...your-api-key...",
+  "api_host": "https://api.openai.com/v1",
+  "model_name": "gpt-4o-mini",
+  "system_prompt": "You are a helpful HR assistant for Indonesian payroll systems.",
+  "temperature": 0.7,
+  "max_tokens": 2048,
+  "timeout_seconds": 9,
+  "is_active": true
+}
+```
+
+**Advanced Configuration:**
+- **Custom Providers**: Set api_host to any OpenAI-compatible endpoint
+- **Context Customization**: Modify system_prompt for domain-specific behavior
+- **Performance Tuning**: Adjust temperature and max_tokens based on use case
+- **Security**: API keys are automatically masked in responses
 
 **Section sources**
-- [seed_data.py:66-82](file://app/seed/seed_data.py#L66-L82)
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
+- [ai.py:46-105](file://app/routers/ai.py#L46-L105)
+- [ai.py:16-41](file://app/schemas/ai.py#L16-L41)
 
-### AI Feature Usage Pattern
-- Configure AiSetting per company with provider, model, and system prompt.
-- Activate AI for the company and wire LangChain/OpenAI clients accordingly.
+### AI Feature Usage Patterns
+Implement AI-powered features with context awareness:
+
+**Chat Integration:**
+- Select appropriate context type (general, payroll, employee, tax)
+- Provide clear user questions with sufficient context
+- Monitor token usage for cost optimization
+- Handle AI response errors gracefully
+
+**Report Generation:**
+- Choose relevant report type for business needs
+- Specify appropriate time periods for analysis
+- Review AI-generated insights critically
+- Export reports for stakeholder consumption
 
 **Section sources**
-- [integration.py:21-36](file://app/models/integration.py#L21-L36)
-- [requirements.txt:11-12](file://requirements.txt#L11-L12)
+- [ai.py:120-202](file://app/routers/ai.py#L120-L202)
+- [ai_proxy_service.py:161-286](file://app/services/ai_proxy_service.py#L161-L286)
 
 ### External System Connections
-- Connect AI providers via AiSetting.api_host and AiSetting.provider_name.
-- Persist configuration per company for isolation and scalability.
+Establish secure connections to external AI providers:
+
+**Provider Configuration:**
+- **OpenAI**: https://api.openai.com/v1 with Bearer token authentication
+- **Anthropic**: https://api.anthropic.com/v1 with API key header
+- **Google AI**: https://generativelanguage.googleapis.com/v1 with API key
+- **Custom**: Any OpenAI-compatible endpoint with proper authentication
+
+**Security Best Practices:**
+- Store API keys in environment variables
+- Use HTTPS endpoints for all communications
+- Implement proper error handling for network failures
+- Monitor provider quotas and usage limits
 
 **Section sources**
-- [integration.py:21-36](file://app/models/integration.py#L21-L36)
+- [AiSettingsForm.tsx:20-27](file://frontend/src/components/ai/AiSettingsForm.tsx#L20-L27)
+- [ai_proxy_service.py:80-90](file://app/services/ai_proxy_service.py#L80-L90)
 
 ### Localization Setup Steps
-- Seed languages and translations during initialization.
-- Switch language by selecting the appropriate language_code and rendering translations by translation_key.
+Implement comprehensive internationalization:
+
+**Initial Setup:**
+1. Seed languages during database initialization
+2. Configure default company language (Indonesian)
+3. Populate translation keys for core modules
+4. Set up language switching in frontend components
+
+**Runtime Management:**
+- Add new languages through Language table entries
+- Manage translations via Translation table with unique constraints
+- Implement language preference detection and caching
+- Handle missing translations gracefully with fallback mechanisms
 
 **Section sources**
-- [seed_data.py:360-373](file://app/seed/seed_data.py#L360-L373)
-- [integration.py:38-67](file://app/models/integration.py#L38-L67)
+- [seed_data.py:371-384](file://app/seed/seed_data.py#L371-L384)
+- [integration.py:39-68](file://app/models/integration.py#L39-L68)
+
+### AI Provider Migration
+Handle AI provider changes and compatibility:
+
+**Migration Strategy:**
+- Update api_host configuration for new provider endpoints
+- Adjust model_name for provider-specific model naming
+- Modify system_prompt for provider-specific instruction formats
+- Test connectivity using /ai/test-connection endpoint
+
+**Compatibility Considerations:**
+- Ensure chat/completions endpoint compatibility
+- Verify authentication method requirements
+- Check token pricing and rate limiting policies
+- Monitor provider uptime and performance metrics
+
+**Section sources**
+- [ai.py:110-116](file://app/routers/ai.py#L110-L116)
+- [AiSettingsForm.tsx:65-72](file://frontend/src/components/ai/AiSettingsForm.tsx#L65-L72)
+
+### Notification System Integration
+Leverage the notification system for AI-powered alerts:
+
+**Notification Types:**
+- **PAYSLIP_READY**: Notify employees when payslips are available
+- **BULK_COMPLETE**: Alert administrators when bulk operations succeed
+- **BULK_FAILED**: Inform about failed bulk processing attempts
+
+**Integration Patterns:**
+- Trigger notifications based on AI-generated insights
+- Send automated alerts for compliance violations detected by AI
+- Coordinate with payroll generation workflows
+- Provide user-friendly notifications for system events
+
+**Section sources**
+- [integration.py:96-120](file://app/models/integration.py#L96-L120)
+- [ai_proxy_service.py:145-158](file://app/services/ai_proxy_service.py#L145-L158)

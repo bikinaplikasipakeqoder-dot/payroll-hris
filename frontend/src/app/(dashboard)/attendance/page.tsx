@@ -14,6 +14,8 @@ import {
   FileText,
   Download,
   Upload,
+  X,
+  Eye,
 } from 'lucide-react';
 import { api, ApiError, API_BASE } from '@/lib/api';
 import Button from '@/components/ui/Button';
@@ -31,6 +33,20 @@ interface AttendanceRecord {
   notes: string | null;
   created_at: string;
   updated_at: string | null;
+}
+
+interface AttendanceSummary {
+  employee_id: number;
+  employee_code: string;
+  employee_name: string;
+  total_working_days: number;
+  present_days: number;
+  absent_days: number;
+  sick_days: number;
+  leave_days: number;
+  permitted_days: number;
+  late_minutes: number;
+  attendance_percentage: number;
 }
 
 interface OvertimeRecord {
@@ -88,6 +104,7 @@ const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 4 + i);
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<Tab>('attendance');
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [summaries, setSummaries] = useState<AttendanceSummary[]>([]);
   const [overtimeRecords, setOvertimeRecords] = useState<OvertimeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,20 +112,18 @@ export default function AttendancePage() {
   const [yearFilter, setYearFilter] = useState<number>(CURRENT_YEAR);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<AttendanceSummary | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchAttendance = async () => {
+  const fetchAttendanceSummary = async () => {
     setLoading(true);
     setError(null);
     try {
-      const startDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-01`;
-      const lastDay = new Date(yearFilter, monthFilter, 0).getDate();
-      const endDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-      const data = await api.get<AttendanceRecord[]>(
-        `/api/v1/attendance?company_id=1&date_from=${startDate}&date_to=${endDate}&skip=0&limit=1000`
+      const data = await api.get<AttendanceSummary[]>(
+        `/api/v1/attendance/summary?company_id=1&month=${monthFilter}&year=${yearFilter}`
       );
-      setAttendanceRecords(data);
+      setSummaries(data);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -117,6 +132,24 @@ export default function AttendancePage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEmployeeDetail = async (employeeId: number) => {
+    setDetailLoading(true);
+    try {
+      const startDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-01`;
+      const lastDay = new Date(yearFilter, monthFilter, 0).getDate();
+      const endDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const data = await api.get<AttendanceRecord[]>(
+        `/api/v1/attendance?employee_id=${employeeId}&date_from=${startDate}&date_to=${endDate}&skip=0&limit=1000`
+      );
+      setAttendanceRecords(data);
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Gagal memuat detail kehadiran.');
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -141,11 +174,21 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (activeTab === 'attendance') {
-      fetchAttendance();
+      fetchAttendanceSummary();
     } else {
       fetchOvertime();
     }
   }, [activeTab, monthFilter, yearFilter]);
+
+  const handleOpenDetail = (summary: AttendanceSummary) => {
+    setSelectedEmployee(summary);
+    fetchEmployeeDetail(summary.employee_id);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedEmployee(null);
+    setAttendanceRecords([]);
+  };
 
   const handleApproveOvertime = async (overtimeId: number) => {
     setApprovingId(overtimeId);
@@ -209,7 +252,7 @@ export default function AttendancePage() {
         alert(
           `Import selesai. Berhasil: ${data.success_count}/${data.total_rows} baris. Error: ${data.error_count}`
         );
-        await fetchAttendance();
+        await fetchAttendanceSummary();
       } else {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -231,12 +274,12 @@ export default function AttendancePage() {
   };
 
   const summaryStats = useMemo(() => {
-    const present = attendanceRecords.filter((r) => r.status === 'PRESENT').length;
-    const absent = attendanceRecords.filter((r) => r.status === 'ABSENT').length;
-    const sick = attendanceRecords.filter((r) => r.status === 'SICK').length;
-    const leave = attendanceRecords.filter((r) => r.status === 'LEAVE' || r.status === 'PERMITTED').length;
+    const present = summaries.reduce((sum, s) => sum + s.present_days, 0);
+    const absent = summaries.reduce((sum, s) => sum + s.absent_days, 0);
+    const sick = summaries.reduce((sum, s) => sum + s.sick_days, 0);
+    const leave = summaries.reduce((sum, s) => sum + s.leave_days + s.permitted_days, 0);
     return { present, absent, sick, leave };
-  }, [attendanceRecords]);
+  }, [summaries]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -391,7 +434,7 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* Attendance Table */}
+          {/* Attendance Summary Table */}
           {loading ? (
             <div className="text-center py-12 text-gray-500">
               <div className="animate-pulse space-y-4">
@@ -403,12 +446,12 @@ export default function AttendancePage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
               <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
               <p className="text-gray-700 mb-4">{error}</p>
-              <Button variant="secondary" onClick={fetchAttendance}>
+              <Button variant="secondary" onClick={fetchAttendanceSummary}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Coba Lagi
               </Button>
             </div>
-          ) : attendanceRecords.length === 0 ? (
+          ) : summaries.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Clock className="w-8 h-8 text-gray-400" />
@@ -427,62 +470,188 @@ export default function AttendancePage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tanggal
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Kode Karyawan
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                        Nama Karyawan
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Jam Masuk
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hari Kerja
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Jam Keluar
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hadir
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Jam Kerja
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Absen
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Terlambat
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Sakit
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Izin
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Telat (menit)
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        % Kehadiran
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Aksi
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {attendanceRecords.map((record) => (
-                      <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(record.attendance_date)}
-                        </td>
+                    {summaries.map((summary) => (
+                      <tr
+                        key={summary.employee_id}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleOpenDetail(summary)}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
-                          EMP-{String(record.employee_id).padStart(4, '0')}
+                          {summary.employee_code}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${ATTENDANCE_STATUS_BADGE[record.status] || 'bg-gray-100 text-gray-700'}`}>
-                            {record.status}
-                          </span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {summary.employee_name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {formatTime(record.check_in_time)}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                          {summary.total_working_days}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {formatTime(record.check_out_time)}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-700 text-center font-medium">
+                          {summary.present_days}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {record.hours_worked != null ? `${record.hours_worked} jam` : '-'}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-700 text-center font-medium">
+                          {summary.absent_days}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {record.is_late ? (
-                            <span className="text-red-600 font-medium">{record.late_minutes} menit</span>
-                          ) : (
-                            <span className="text-green-600">-</span>
-                          )}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-700 text-center font-medium">
+                          {summary.sick_days}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-700 text-center font-medium">
+                          {summary.leave_days + summary.permitted_days}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                          {summary.late_minutes || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center font-medium">
+                          {summary.attendance_percentage}%
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetail(summary);
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Detail
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Detail Modal */}
+          {selectedEmployee && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Detail Kehadiran
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {selectedEmployee.employee_code} - {selectedEmployee.employee_name} | {MONTH_OPTIONS.find(m => m.value === monthFilter)?.label} {yearFilter}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCloseDetail}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 overflow-auto flex-1">
+                  {detailLoading ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <div className="animate-pulse space-y-4">
+                        <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto" />
+                        <div className="h-48 bg-gray-200 rounded" />
+                      </div>
+                    </div>
+                  ) : attendanceRecords.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p>Belum ada detail kehadiran untuk karyawan ini.</p>
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tanggal
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Jam Masuk
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Jam Keluar
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Jam Kerja
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Terlambat
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {attendanceRecords.map((record) => (
+                          <tr key={record.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {formatDate(record.attendance_date)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${ATTENDANCE_STATUS_BADGE[record.status] || 'bg-gray-100 text-gray-700'}`}>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                              {formatTime(record.check_in_time)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                              {formatTime(record.check_out_time)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                              {record.hours_worked != null ? `${record.hours_worked} jam` : '-'}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              {record.is_late ? (
+                                <span className="text-red-600 font-medium">{record.late_minutes} menit</span>
+                              ) : (
+                                <span className="text-green-600">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="p-6 border-t border-gray-200 flex justify-end">
+                  <Button variant="secondary" onClick={handleCloseDetail}>
+                    Tutup
+                  </Button>
+                </div>
               </div>
             </div>
           )}

@@ -9,7 +9,22 @@
 - [salary.py](file://app/models/salary.py)
 - [base.py](file://app/models/base.py)
 - [database.py](file://app/database.py)
+- [overtime.py](file://app/calculations/overtime.py)
+- [attendance.py](file://app/routers/attendance.py)
+- [schemas/attendance.py](file://app/schemas/attendance.py)
+- [services/attendance_loader.py](file://app/services/attendance_loader.py)
+- [utils/date_utils.py](file://app/utils/date_utils.py)
+- [utils/decimal_utils.py](file://app/utils/decimal_utils.py)
+- [services/payroll_service.py](file://app/services/payroll_service.py)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive overtime calculation engine with Permenaker-compliant multipliers
+- Integrated attendance and overtime data loading for payroll processing
+- Enhanced API endpoints for attendance tracking and overtime management
+- Added decimal precision utilities for Indonesian Rupiah calculations
+- Implemented attendance summary aggregation for payroll reporting
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -17,29 +32,37 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [Overtime Calculation Engine](#overtime-calculator-engine)
+7. [Attendance Data Loading](#attendance-data-loading)
+8. [API Integration](#api-integration)
+9. [Decimal Precision Management](#decimal-precision-management)
+10. [Payroll Integration](#payroll-integration)
+11. [Dependency Analysis](#dependency-analysis)
+12. [Performance Considerations](#performance-considerations)
+13. [Troubleshooting Guide](#troubleshooting-guide)
+14. [Conclusion](#conclusion)
+15. [Appendices](#appendices)
 
 ## Introduction
-This document explains the attendance and overtime management system implemented in the Payroll & HRIS application. It covers attendance tracking, shift configuration, work hour computation, overtime calculation, and validation rules. It also describes how attendance integrates with payroll processing, leave management, and productivity tracking, and outlines attendance policies aligned with Indonesian timekeeping regulations.
+This document explains the complete attendance and overtime management system implemented in the Payroll & HRIS application. The system provides comprehensive tracking of employee attendance, automated overtime calculation compliant with Indonesian labor regulations (Permenaker), shift configuration, work hour computation, and seamless integration with payroll processing, leave management, and productivity tracking. The system adheres to Indonesian timekeeping regulations and supports both 5-day and 6-day work week configurations.
 
 ## Project Structure
-The system is built with SQLAlchemy models organized by domain:
-- Attendance and overtime: shifts, employee shift assignments, attendance records, overtime records, and overtime settings
-- Employees and organization: departments, positions, employment statuses, and employee master data
-- Payroll: payroll runs, payslips, and payslip line items
-- Leave: leave types, balances, and leave requests
-- Salary: grades, salary matrix, allowance types, employee allowances, and deduction types
-- Infrastructure: base mixins and database engine/session configuration
+The system is built with SQLAlchemy models organized by domain, featuring a robust overtime calculation engine and comprehensive attendance tracking:
+
+- **Attendance and Overtime**: Shift definitions, employee shift assignments, attendance records, overtime records with Permenaker-compliant calculations, and company-wide overtime settings
+- **Employees and Organization**: Departments, positions, employment statuses, and comprehensive employee master data
+- **Payroll**: Payroll runs, payslips, and detailed payslip line items with attendance-derived metrics
+- **Leave**: Leave types, balances, and leave requests with impact on attendance status
+- **Salary**: Grades, salary matrix, allowance types, employee allowances, and deduction types
+- **Infrastructure**: Base mixins, database engine/session configuration, and utility functions
 
 ```mermaid
 graph TB
 subgraph "Infrastructure"
 Base["Base Mixins<br/>Timestamp, SoftDelete, Audit"]
 DB["Database Engine & Session"]
+DecimalUtils["Decimal Precision Utils<br/>IDR, CALC, RATE Precision"]
+DateUtils["Date Utilities<br/>Month Range, Period Parsing"]
 end
 subgraph "HR"
 Emp["Employee"]
@@ -53,11 +76,13 @@ EmpShift["EmployeeShiftAssignment"]
 AttRec["AttendanceRecord"]
 OTRec["OvertimeRecord"]
 OTSet["OvertimeSetting"]
+OTCalc["Overtime Calculator<br/>Permenaker Compliance"]
 end
 subgraph "Payroll"
 PayRun["PayrollRun"]
 Payslip["Payslip"]
 PL["PayslipLine"]
+PayrollSvc["Payroll Service<br/>Orchestrator"]
 end
 subgraph "Leave"
 LT["LeaveType"]
@@ -102,68 +127,98 @@ EmpShift --> AttRec
 AttRec --> Payslip
 OTRec --> Payslip
 OTSet --> OTRec
-PayRun --> Payslip
-LT --> ELB
-LT --> LR
+OTCalc --> OTRec
+PayrollSvc --> Payslip
+PayrollSvc --> AttRec
+PayrollSvc --> OTRec
+DecimalUtils --> OTCalc
+DateUtils --> PayrollSvc
 ```
 
 **Diagram sources**
 - [base.py:18-57](file://app/models/base.py#L18-L57)
-- [employee.py:76-132](file://app/models/employee.py#L76-L132)
+- [employee.py:76-142](file://app/models/employee.py#L76-L142)
 - [attendance.py:21-134](file://app/models/attendance.py#L21-L134)
-- [payroll.py:19-124](file://app/models/payroll.py#L19-L124)
+- [payroll.py:19-197](file://app/models/payroll.py#L19-L197)
 - [leave.py:19-97](file://app/models/leave.py#L19-L97)
-- [salary.py:21-135](file://app/models/salary.py#L21-L135)
-- [database.py:17-63](file://app/database.py#L17-L63)
+- [salary.py:21-248](file://app/models/salary.py#L21-L248)
+- [database.py:17-82](file://app/database.py#L17-L82)
+- [overtime.py:1-200](file://app/calculations/overtime.py#L1-L200)
+- [services/attendance_loader.py:1-104](file://app/services/attendance_loader.py#L1-L104)
+- [utils/decimal_utils.py:1-33](file://app/utils/decimal_utils.py#L1-L33)
+- [utils/date_utils.py:1-31](file://app/utils/date_utils.py#L1-L31)
 
 **Section sources**
 - [base.py:18-57](file://app/models/base.py#L18-L57)
-- [database.py:17-63](file://app/database.py#L17-L63)
+- [database.py:17-82](file://app/database.py#L17-L82)
 
 ## Core Components
-This section introduces the central models for attendance and overtime and their roles in the system.
+This section introduces the central models for attendance and overtime and their roles in the system, enhanced with the new calculation engine.
 
-- Shift: Defines company work shifts with start/end times, break duration, and activity flag.
-- EmployeeShiftAssignment: Assigns a shift to an employee with effective and end dates.
-- AttendanceRecord: Captures daily attendance status, check-in/out times, lateness flags, minutes late, computed worked hours, and notes.
-- OvertimeRecord: Stores overtime hours, type (weekday/weekend/holiday), multiplier, calculated amount, approval metadata, and notes.
-- OvertimeSetting: Company-wide overtime configuration including weekly work type, hourly multipliers, and optional late penalty per minute.
+### Attendance Models
+- **Shift**: Defines company work shifts with start/end times, break duration, and activity flag
+- **EmployeeShiftAssignment**: Assigns a shift to an employee with effective and end dates
+- **AttendanceRecord**: Captures daily attendance status, check-in/out times, lateness flags, minutes late, computed worked hours, and notes
+
+### Overtime Models
+- **OvertimeRecord**: Stores overtime hours, type (weekday/weekend/holiday), multiplier, calculated amount, approval metadata, and notes
+- **OvertimeSetting**: Company-wide overtime configuration including weekly work type, hourly multipliers, and optional late penalty per minute
+
+### Overtime Calculation Engine
+- **Overtime Calculator**: Pure functions implementing Permenaker regulations with hour-by-hour multipliers
+- **Decimal Precision Utils**: Specialized rounding for IDR amounts, calculation precision, and rate calculations
+- **Attendance Loader**: Efficient data loading and aggregation for payroll processing
 
 Key constraints and indexes ensure data integrity and efficient queries:
-- AttendanceRecord validates status values and enforces uniqueness per employee-date.
-- OvertimeRecord validates type and approval status, and indexes employee-date combinations.
-- OvertimeSetting validates weekly work type and ensures single company setting.
+- AttendanceRecord validates status values and enforces uniqueness per employee-date
+- OvertimeRecord validates type and approval status, and indexes employee-date combinations
+- OvertimeSetting validates weekly work type and ensures single company setting
 
 **Section sources**
 - [attendance.py:21-134](file://app/models/attendance.py#L21-L134)
+- [overtime.py:1-200](file://app/calculations/overtime.py#L1-L200)
+- [services/attendance_loader.py:1-104](file://app/services/attendance_loader.py#L1-L104)
 
 ## Architecture Overview
-The attendance and overtime subsystem integrates with payroll, leave, and compensation domains. Attendance data feeds into payslips, while overtime records contribute to earnings and tax calculations. Leave requests impact attendance status and workday counts.
+The attendance and overtime subsystem integrates seamlessly with payroll, leave, and compensation domains. The new calculation engine ensures compliance with Indonesian labor regulations while maintaining performance and accuracy.
 
 ```mermaid
 graph TB
 AttRec["AttendanceRecord"]
 OTRec["OvertimeRecord"]
 OTSet["OvertimeSetting"]
+OTCalc["Overtime Calculator"]
 Emp["Employee"]
 PayRun["PayrollRun"]
 Payslip["Payslip"]
+PayrollSvc["Payroll Service"]
+AttLoader["Attendance Loader"]
+DecimalUtils["Decimal Utils"]
 Emp --> AttRec
 Emp --> OTRec
 OTSet --> OTRec
+OTCalc --> OTRec
 AttRec --> Payslip
 OTRec --> Payslip
-PayRun --> Payslip
+PayrollSvc --> Payslip
+PayrollSvc --> AttRec
+PayrollSvc --> OTRec
+AttLoader --> AttRec
+AttLoader --> OTRec
+DecimalUtils --> OTCalc
 ```
 
 **Diagram sources**
-- [attendance.py:56-110](file://app/models/attendance.py#L56-L110)
-- [payroll.py:64-94](file://app/models/payroll.py#L64-L94)
+- [attendance.py:56-133](file://app/models/attendance.py#L56-L133)
+- [payroll.py:64-102](file://app/models/payroll.py#L64-L102)
+- [overtime.py:34-200](file://app/calculations/overtime.py#L34-L200)
+- [services/attendance_loader.py:35-104](file://app/services/attendance_loader.py#L35-L104)
+- [utils/decimal_utils.py:11-33](file://app/utils/decimal_utils.py#L11-L33)
 
 ## Detailed Component Analysis
 
 ### Attendance Tracking
-AttendanceRecord captures daily presence and work timing. It supports five statuses: present, absent, leave, sick, and permitted. The model computes whether an employee was late and accumulates minutes late and worked hours.
+AttendanceRecord captures daily presence and work timing with comprehensive validation and indexing for optimal performance.
 
 ```mermaid
 classDiagram
@@ -179,26 +234,34 @@ class AttendanceRecord {
 +numeric hours_worked
 +text notes
 }
+class AttendanceValidator {
++validate_status(status)
++validate_duplicate(employee_id, date)
++calculate_worked_hours(check_in, check_out, break)
++flag_lateness(late_minutes)
+}
 ```
 
 **Diagram sources**
 - [attendance.py:56-80](file://app/models/attendance.py#L56-L80)
 
-Validation rules:
-- Status constrained to predefined values.
-- Unique constraint prevents duplicate entries per employee-date.
-- Indexes optimize lookups by employee-date and by date-status.
+Validation rules and business logic:
+- Status constrained to PRESENT, ABSENT, LEAVE, SICK, PERMITTED
+- Unique constraint prevents duplicate entries per employee-date
+- Indexes optimize lookups by employee-date and by date-status
+- Clock-in/clock-out endpoints handle real-time time tracking
 
 Example scenarios:
-- Present day with check-in/out times and computed worked hours.
-- Leave day recorded with status LEAVE and zero worked hours.
-- Absent day with status ABSENT and no check-in/out.
+- Present day with check-in/out times and computed worked hours
+- Leave day recorded with status LEAVE and zero worked hours
+- Absent day with status ABSENT and no check-in/out
 
 **Section sources**
 - [attendance.py:72-80](file://app/models/attendance.py#L72-L80)
+- [routers/attendance.py:28-195](file://app/routers/attendance.py#L28-L195)
 
-### Overtime Calculation Methods
-OvertimeRecord stores hours, type, and multiplier. OvertimeSetting defines company-wide multipliers for weekday and weekend hours, and the weekly work week type (5-day or 6-day). Optional late penalty per minute can be configured.
+### Overtime Management System
+The system implements comprehensive overtime tracking with Permenaker-compliant calculations and approval workflows.
 
 ```mermaid
 classDiagram
@@ -226,42 +289,27 @@ class OvertimeSetting {
 +numeric late_penalty_per_minute
 +boolean is_active
 }
+class OvertimeCalculator {
++calculate_hourly_rate(monthly_salary)
++calculate_single_overtime(hours, type, work_week, hourly_rate)
++calculate_overtime_total(entries, monthly_salary, work_week)
++get_multiplier_5day(hour_index, type)
++get_multiplier_6day(hour_index, type)
+}
 OvertimeSetting --> OvertimeRecord : "configures multipliers"
+OvertimeCalculator --> OvertimeRecord : "calculates amounts"
 ```
 
 **Diagram sources**
-- [attendance.py:83-110](file://app/models/attendance.py#L83-L110)
-- [attendance.py:113-133](file://app/models/attendance.py#L113-L133)
-
-Calculation logic outline:
-- Determine overtime type (weekday/weekend/holiday) based on the overtime_date.
-- Select appropriate first-hour and subsequent multipliers from OvertimeSetting.
-- Compute calculated_amount = hours × multiplier.
-- Approval workflow: PENDING → APPROVED/REJECTED with audit fields.
-
-Approval workflow sequence:
-
-```mermaid
-sequenceDiagram
-participant E as "Employee"
-participant S as "Supervisor"
-participant DB as "OvertimeRecord"
-E->>DB : "Submit overtime request"
-DB-->>E : "Status PENDING"
-S->>DB : "Approve/Reject"
-DB-->>S : "Update approval_status"
-DB-->>E : "Notify outcome"
-```
-
-**Diagram sources**
-- [attendance.py:95-98](file://app/models/attendance.py#L95-L98)
+- [attendance.py:83-133](file://app/models/attendance.py#L83-L133)
+- [overtime.py:26-200](file://app/calculations/overtime.py#L26-L200)
 
 **Section sources**
-- [attendance.py:100-110](file://app/models/attendance.py#L100-L110)
-- [attendance.py:118-126](file://app/models/attendance.py#L118-L126)
+- [attendance.py:100-133](file://app/models/attendance.py#L100-L133)
+- [overtime.py:34-200](file://app/calculations/overtime.py#L34-L200)
 
 ### Shift Configuration and Scheduling
-Shift defines company work shifts with code, name, start/end times, and break duration. EmployeeShiftAssignment links employees to shifts with effective and end dates, enabling historical tracking.
+Shift definitions enable flexible work schedule management with assignment tracking.
 
 ```mermaid
 classDiagram
@@ -287,19 +335,13 @@ Shift <.. EmployeeShiftAssignment : "assigned to"
 ```
 
 **Diagram sources**
-- [attendance.py:21-40](file://app/models/attendance.py#L21-L40)
-- [attendance.py:43-54](file://app/models/attendance.py#L43-L54)
-
-Shift scheduling example:
-- An employee is assigned to a day shift with a 60-minute break.
-- Effective date starts today and remains until a future end_date.
+- [attendance.py:21-54](file://app/models/attendance.py#L21-L54)
 
 **Section sources**
-- [attendance.py:38-40](file://app/models/attendance.py#L38-L40)
-- [attendance.py:51-53](file://app/models/attendance.py#L51-L53)
+- [attendance.py:21-54](file://app/models/attendance.py#L21-L54)
 
 ### Work Hour Computation
-Work hour computation is captured in AttendanceRecord.hours_worked. The model flags lateness and tracks late minutes, enabling productivity and compliance reporting.
+Work hour computation captures attendance-derived metrics for payroll processing.
 
 ```mermaid
 flowchart TD
@@ -311,187 +353,156 @@ CheckInOut --> LateFlag["Compute Late Minutes"]
 LateFlag --> Hours["Calculate Worked Hours<br/>(Net of Break)"]
 Hours --> Store["Store in AttendanceRecord"]
 Skip --> Store
-Store --> End(["End"])
+Store --> Metrics["Update Attendance Summary"]
+Metrics --> Payroll["Feed to Payroll System"]
+Payroll --> End(["End"])
 ```
 
 **Diagram sources**
 - [attendance.py:64-70](file://app/models/attendance.py#L64-L70)
 
 **Section sources**
-- [attendance.py:67-70](file://app/models/attendance.py#L67-L70)
+- [attendance.py:64-70](file://app/models/attendance.py#L64-L70)
 
 ### Attendance Validation Rules
-The system enforces strict validation for attendance records and overtime records to maintain data integrity and regulatory compliance.
+The system enforces strict validation for attendance and overtime records to maintain data integrity.
 
-- AttendanceRecord:
-  - Status must be one of PRESENT, ABSENT, LEAVE, SICK, PERMITTED.
-  - Unique constraint per employee-date prevents duplication.
-  - Indexes on employee-date and date-status enable fast reporting.
+- **AttendanceRecord**:
+  - Status must be one of PRESENT, ABSENT, LEAVE, SICK, PERMITTED
+  - Unique constraint per employee-date prevents duplication
+  - Indexes on employee-date and date-status enable fast reporting
 
-- OvertimeRecord:
-  - Type must be WEEKDAY, WEEKEND, or HOLIDAY.
-  - Approval status must be PENDING, APPROVED, or REJECTED.
-  - Index on employee-date supports efficient overtime queries.
+- **OvertimeRecord**:
+  - Type must be WEEKDAY, WEEKEND, or HOLIDAY
+  - Approval status must be PENDING, APPROVED, or REJECTED
+  - Index on employee-date supports efficient overtime queries
 
-- OvertimeSetting:
-  - Weekly work week type must be 5_DAY or 6_DAY.
-  - Single company-wide setting enforced via unique constraint.
+- **OvertimeSetting**:
+  - Weekly work week type must be 5_DAY or 6_DAY
+  - Single company-wide setting enforced via unique constraint
 
 **Section sources**
-- [attendance.py:72-80](file://app/models/attendance.py#L72-L80)
-- [attendance.py:100-110](file://app/models/attendance.py#L100-L110)
-- [attendance.py:128-133](file://app/models/attendance.py#L128-L133)
+- [attendance.py:72-133](file://app/models/attendance.py#L72-L133)
 
-### Attendance Recording System
-The recording system integrates with employee master data and payroll reporting. AttendanceRecord links to Employee and contributes to Payslip totals.
+## Overtime Calculator Engine
+The new calculation engine implements Permenaker regulations with precise hour-by-hour multipliers.
 
-```mermaid
-classDiagram
-class Employee {
-+int id
-+int company_id
-+string employee_code
-+string first_name
-+string last_name
-+string full_name
-+date date_joined
-+boolean is_active
-}
-class AttendanceRecord {
-+int id
-+int employee_id
-+date attendance_date
-+string status
-+numeric hours_worked
-}
-class Payslip {
-+int id
-+int employee_id
-+int working_days
-+numeric overtime_hours
-+numeric late_minutes
-}
-Employee --> AttendanceRecord : "records"
-AttendanceRecord --> Payslip : "feeds metrics"
-```
+### Permenaker Compliance
+The calculator follows Indonesian labor regulations (PP 35/2021, Kepmenaker 102/MEN/VI/2004) with standardized hourly rate calculation.
 
-**Diagram sources**
-- [employee.py:76-118](file://app/models/employee.py#L76-L118)
-- [attendance.py:56-80](file://app/models/attendance.py#L56-L80)
-- [payroll.py:64-94](file://app/models/payroll.py#L64-L94)
+**Hourly Rate Calculation**: 1/173 × monthly_salary (standard for all work week types)
 
-### Overtime Policy Enforcement
-Overtime policy is enforced via OvertimeSetting and OvertimeRecord. Multipliers and approval workflow ensure compliance with company policy and tax regulations.
+### Multiplier Structures
+
+#### 5-Day Work Week
+- **Weekday**: 1st hour = 1.5×, subsequent hours = 2×
+- **Weekend/Holiday**: 1-8 hours = 2×, 9th hour = 3×, 10th+ hours = 4×
+
+#### 6-Day Work Week
+- **Weekday**: 1st hour = 1.5×, subsequent hours = 2×
+- **Saturday**: 1-5 hours = 2×, 6th hour = 3×, 7th+ hours = 4×
+- **Sunday/Holiday**: 1-7 hours = 2×, 8th hour = 3×, 9th+ hours = 4×
+
+### Calculation Precision
+- **Intermediate calculations**: 2 decimal places for accuracy
+- **Final amounts**: Rounded to nearest Rupiah (0 decimal places)
+- **Rate calculations**: 4 decimal places for precision
+
+**Section sources**
+- [overtime.py:1-200](file://app/calculations/overtime.py#L1-L200)
+- [utils/decimal_utils.py:11-33](file://app/utils/decimal_utils.py#L11-L33)
+
+## Attendance Data Loading
+The AttendanceLoader efficiently processes attendance and overtime data for payroll periods.
+
+### Data Aggregation
+The loader processes all records for a given period and creates summary statistics:
 
 ```mermaid
 flowchart TD
-Init(["Initiate Overtime"]) --> Type["Determine Type<br/>Weekday/Weekend/Holiday"]
-Type --> Multiplier["Select Multipliers<br/>from OvertimeSetting"]
-Multiplier --> Calc["Compute Amount = Hours × Multiplier"]
-Calc --> Approve["Approval Workflow"]
-Approve --> Approved{"Approved?"}
-Approved --> |Yes| Post["Post to OvertimeRecord"]
-Approved --> |No| Reject["Reject & Notify"]
-Post --> Payroll["Include in Payslip"]
-Payroll --> End(["End"])
+Period["Payroll Period"] --> LoadAtt["Load Attendance Records"]
+Period --> LoadOT["Load Approved Overtime Records"]
+LoadAtt --> GroupEmp["Group by Employee"]
+LoadOT --> GroupEmp
+GroupEmp --> SumWorkingDays["Count Working Days"]
+SumWorkingDays --> SumPresent["Count Present Days"]
+SumPresent --> SumLate["Sum Late Minutes"]
+SumLate --> SumOT["Sum Overtime Hours"]
+SumOT --> CreateSummary["Create AttendanceSummary"]
+CreateSummary --> Result["Return EmployeeAttendanceData"]
 ```
 
 **Diagram sources**
-- [attendance.py:113-126](file://app/models/attendance.py#L113-L126)
-- [attendance.py:83-110](file://app/models/attendance.py#L83-L110)
+- [services/attendance_loader.py:35-104](file://app/services/attendance_loader.py#L35-L104)
 
-### Integration with Payroll Processing
-PayrollRun aggregates payslips per period. Payslip includes attendance-derived metrics (working days, late minutes) and overtime earnings. PayslipLine categorizes earnings, taxes, and deductions.
-
-```mermaid
-classDiagram
-class PayrollRun {
-+int id
-+int company_id
-+string payroll_period
-+date period_start_date
-+date period_end_date
-+string status
-}
-class Payslip {
-+int id
-+int payroll_run_id
-+int employee_id
-+int working_days
-+numeric overtime_hours
-+numeric late_minutes
-+numeric overtime_amount
-+numeric net_salary
-}
-class PayslipLine {
-+int id
-+int payslip_id
-+string line_type
-+string description
-+numeric amount
-}
-PayrollRun --> Payslip : "contains"
-Payslip --> PayslipLine : "has lines"
-```
-
-**Diagram sources**
-- [payroll.py:19-61](file://app/models/payroll.py#L19-L61)
-- [payroll.py:64-102](file://app/models/payroll.py#L64-L102)
-- [payroll.py:105-124](file://app/models/payroll.py#L105-L124)
-
-### Integration with Leave Management
-Leave types define entitlements and approval requirements. Leave requests impact attendance status and workday counts during leave periods.
-
-```mermaid
-classDiagram
-class LeaveType {
-+int id
-+int company_id
-+string name
-+string code
-+int default_annual_entitlement
-+boolean is_paid
-+boolean requires_approval
-}
-class EmployeeLeaveBalance {
-+int id
-+int employee_id
-+int leave_type_id
-+int year
-+int opening_balance
-+int entitlement
-+int used
-+int carried_forward
-+int closing_balance
-}
-class LeaveRequest {
-+int id
-+int employee_id
-+int leave_type_id
-+date start_date
-+date end_date
-+int days_requested
-+string status
-}
-LeaveType --> EmployeeLeaveBalance : "defines"
-LeaveType --> LeaveRequest : "applies to"
-```
-
-**Diagram sources**
-- [leave.py:19-41](file://app/models/leave.py#L19-L41)
-- [leave.py:43-63](file://app/models/leave.py#L43-L63)
-- [leave.py:66-97](file://app/models/leave.py#L66-L97)
-
-### Productivity Tracking
-Productivity metrics derive from AttendanceRecord (hours_worked, late_minutes) and LeaveRequest (days requested). These feed into Payslip summaries for reporting.
+### Performance Optimization
+- Single database query for each record type
+- In-memory grouping for O(1) lookup performance
+- Efficient decimal conversion and aggregation
+- Support for large-scale payroll processing
 
 **Section sources**
-- [attendance.py:67-70](file://app/models/attendance.py#L67-L70)
-- [leave.py:76-77](file://app/models/leave.py#L76-L77)
-- [payroll.py:87-89](file://app/models/payroll.py#L87-L89)
+- [services/attendance_loader.py:16-104](file://app/services/attendance_loader.py#L16-L104)
+
+## API Integration
+The attendance and overtime system provides comprehensive RESTful APIs for real-time management.
+
+### Attendance Endpoints
+- **POST /attendance**: Create attendance record with duplicate prevention
+- **GET /attendance**: List attendance records with filtering options
+- **POST /attendance/clock-in**: Employee clock-in with automatic record creation
+- **POST /attendance/clock-out**: Employee clock-out with validation
+
+### Overtime Endpoints
+- **POST /attendance/overtime**: Submit overtime work entry
+- **GET /attendance/overtime**: List overtime records with approval filtering
+- **PATCH /attendance/overtime/{id}/approve**: Approve or reject overtime requests
+
+### Request/Response Validation
+All endpoints use Pydantic schemas for input validation and structured responses, ensuring data integrity and consistent API behavior.
+
+**Section sources**
+- [routers/attendance.py:1-296](file://app/routers/attendance.py#L1-L296)
+- [schemas/attendance.py:1-105](file://app/schemas/attendance.py#L1-L105)
+
+## Decimal Precision Management
+Specialized utilities ensure accurate financial calculations compliant with Indonesian Rupiah standards.
+
+### Precision Levels
+- **IDR_PRECISION**: 0 decimal places for final amounts (nearest Rupiah)
+- **CALC_PRECISION**: 2 decimal places for intermediate calculations
+- **RATE_PRECISION**: 4 decimal places for rate calculations
+
+### Rounding Strategies
+- **round_money()**: Uses ROUND_HALF_UP for fair rounding to Rupiah
+- **round_calc()**: Maintains calculation accuracy during intermediate steps
+- **to_decimal()**: Safe conversion avoiding floating-point errors
+
+**Section sources**
+- [utils/decimal_utils.py:1-33](file://app/utils/decimal_utils.py#L1-L33)
+
+## Payroll Integration
+The system seamlessly integrates attendance and overtime data into the payroll processing pipeline.
+
+### Payroll Processing Flow
+1. **Configuration Loading**: Load company settings and employee data
+2. **Attendance Loading**: Fetch attendance and approved overtime for the period
+3. **Individual Calculation**: Process each employee's components
+4. **Payslip Generation**: Create payslips with attendance-derived metrics
+5. **Bulk Insertion**: Efficient database insertion of all payslips
+
+### Attendance Metrics in Payroll
+- **Working Days**: Total days worked during period
+- **Late Minutes**: Accumulated lateness penalties
+- **Overtime Hours**: Approved overtime hours for compensation
+- **Leave/Sick Days**: Time off impact on payroll calculations
+
+**Section sources**
+- [services/payroll_service.py:136-200](file://app/services/payroll_service.py#L136-L200)
+- [payroll.py:64-102](file://app/models/payroll.py#L64-L102)
 
 ## Dependency Analysis
-The models share common infrastructure via Base and TimestampMixin. Attendance and overtime depend on Employee, while payroll depends on both Attendance and Overtime. Leave and compensation models are orthogonal but integrate through Employee.
+The models share common infrastructure via Base and TimestampMixin. The new calculation engine adds specialized dependencies while maintaining clean separation of concerns.
 
 ```mermaid
 graph TB
@@ -500,19 +511,23 @@ Emp["Employee"]
 Att["AttendanceRecord"]
 OT["OvertimeRecord"]
 OS["OvertimeSetting"]
-PR["PayrollRun"]
-PS["Payslip"]
-PL["PayslipLine"]
-LT["LeaveType"]
-LR["LeaveRequest"]
+OTCalc["Overtime Calculator"]
+PayrollSvc["Payroll Service"]
+AttLoader["Attendance Loader"]
+DecimalUtils["Decimal Utils"]
+DateUtils["Date Utils"]
 Base --> Emp
 Emp --> Att
 Emp --> OT
 OS --> OT
-Att --> PS
-OT --> PS
-PR --> PS
-LT --> LR
+OTCalc --> OT
+PayrollSvc --> Payslip
+PayrollSvc --> Att
+PayrollSvc --> OT
+AttLoader --> Att
+AttLoader --> OT
+DecimalUtils --> OTCalc
+DateUtils --> PayrollSvc
 ```
 
 **Diagram sources**
@@ -520,74 +535,89 @@ LT --> LR
 - [employee.py:76-118](file://app/models/employee.py#L76-L118)
 - [attendance.py:56-110](file://app/models/attendance.py#L56-L110)
 - [payroll.py:64-102](file://app/models/payroll.py#L64-L102)
-- [leave.py:19-97](file://app/models/leave.py#L19-L97)
+- [overtime.py:34-200](file://app/calculations/overtime.py#L34-L200)
+- [services/attendance_loader.py:35-104](file://app/services/attendance_loader.py#L35-L104)
+- [utils/decimal_utils.py:11-33](file://app/utils/decimal_utils.py#L11-L33)
+- [utils/date_utils.py:5-31](file://app/utils/date_utils.py#L5-L31)
 
 **Section sources**
 - [base.py:18-33](file://app/models/base.py#L18-L33)
-- [database.py:17-63](file://app/database.py#L17-L63)
+- [database.py:17-82](file://app/database.py#L17-L82)
 
 ## Performance Considerations
-- Indexes on attendance_employee_date and attendance_date_status accelerate daily rollups and status reporting.
-- Index on overtime_employee_date supports efficient overtime aggregation per employee and date.
-- Unique constraints prevent redundant writes and ensure accurate aggregations.
-- PayrollRun and Payslip indexing supports batch processing and filtering by status.
-
-[No sources needed since this section provides general guidance]
+- **Indexing Strategy**: Optimized indexes on attendance_employee_date, attendance_date_status, and overtime_employee_date
+- **Batch Processing**: AttendanceLoader uses single queries with in-memory grouping for efficiency
+- **Precision Management**: Specialized decimal utilities prevent floating-point errors and ensure accurate calculations
+- **Memory Efficiency**: Dataclass-based structures minimize memory overhead during payroll processing
+- **Database Optimization**: WAL mode and foreign key enforcement for concurrent access
 
 ## Troubleshooting Guide
 Common issues and resolutions:
-- Duplicate attendance record: Check uniqueness constraint on employee-date combination and resolve duplicates before reprocessing.
-- Invalid status value: Ensure status is one of PRESENT, ABSENT, LEAVE, SICK, PERMITTED.
-- Invalid overtime type: Verify type is WEEKDAY, WEEKEND, or HOLIDAY.
-- Unapproved overtime: Confirm approval status is APPROVED before including in payroll.
-- Overtime setting mismatch: Validate work week type and multipliers align with company policy.
+
+### Attendance Issues
+- **Duplicate attendance record**: Check uniqueness constraint on employee-date combination and resolve duplicates before reprocessing
+- **Invalid status value**: Ensure status is one of PRESENT, ABSENT, LEAVE, SICK, PERMITTED
+- **Clock-in/clock-out conflicts**: Verify employee has proper clock-in status before clock-out
+
+### Overtime Issues
+- **Invalid overtime type**: Verify type is WEEKDAY, WEEKEND, or HOLIDAY
+- **Unapproved overtime**: Confirm approval status is APPROVED before including in payroll
+- **Calculation errors**: Check monthly salary is positive and work week type is valid
+
+### Calculation Issues
+- **Precision errors**: Verify decimal utilities are used consistently for all calculations
+- **Permenaker compliance**: Ensure multipliers match the specified work week configuration
+- **Data loading failures**: Check AttendanceLoader returns expected employee IDs and data completeness
 
 **Section sources**
-- [attendance.py:72-80](file://app/models/attendance.py#L72-L80)
-- [attendance.py:100-110](file://app/models/attendance.py#L100-L110)
-- [attendance.py:128-133](file://app/models/attendance.py#L128-L133)
+- [attendance.py:72-133](file://app/models/attendance.py#L72-L133)
+- [overtime.py:129-140](file://app/calculations/overtime.py#L129-L140)
+- [services/attendance_loader.py:35-104](file://app/services/attendance_loader.py#L35-L104)
 
 ## Conclusion
-The attendance and overtime subsystem provides robust tracking, configurable policies, and seamless integration with payroll, leave, and productivity reporting. Constraints and indexes ensure data integrity and performance, while approval workflows enforce policy compliance.
-
-[No sources needed since this section summarizes without analyzing specific files]
+The attendance and overtime subsystem provides a comprehensive, Permenaker-compliant solution for tracking employee attendance and calculating overtime compensation. The system features real-time clock-in/clock-out capabilities, sophisticated calculation engine, efficient data loading for payroll processing, and seamless integration with the broader payroll ecosystem. The addition of specialized decimal precision utilities and performance optimizations ensures accurate financial calculations while maintaining system scalability.
 
 ## Appendices
 
 ### Attendance Entry Example
-- Employee: ID X
-- Date: 2025-06-01
-- Status: PRESENT
-- Check-in: 08:15:00
-- Check-out: 17:00:00
-- Late minutes: 15
-- Hours worked: 8.25
-- Notes: Standard day
+- **Employee**: ID X
+- **Date**: 2025-06-01
+- **Status**: PRESENT
+- **Check-in**: 08:15:00
+- **Check-out**: 17:00:00
+- **Late minutes**: 15
+- **Hours worked**: 8.25
+- **Notes**: Standard day
 
 ### Overtime Calculation Example
-- Employee: ID X
-- Date: 2025-06-01
-- Type: WEEKDAY
-- Hours: 3.00
-- Multiplier: 1.5 (first hour)
-- Calculated amount: 4.50
-- Approval status: APPROVED
+- **Employee**: ID X
+- **Date**: 2025-06-01
+- **Type**: WEEKDAY
+- **Hours**: 3.00
+- **Multipliers**: 1.5× (1st hour), 2× (subsequent hours)
+- **Calculated amount**: 4.50 (first hour) + 4.00 (2nd hour) + 4.00 (3rd hour) = 12.50 Rupiah
+- **Approval status**: APPROVED
 
 ### Shift Configuration Example
-- Shift code: DS001
-- Name: Day Shift
-- Start time: 08:00
-- End time: 17:00
-- Break: 60 minutes
-- Active: true
-- Assignment: Employee X effective 2025-06-01
+- **Shift code**: DS001
+- **Name**: Day Shift
+- **Start time**: 08:00
+- **End time**: 17:00
+- **Break**: 60 minutes
+- **Active**: true
+- **Assignment**: Employee X effective 2025-06-01
 
 ### Attendance Reporting Example
-- Period: 2025-06-01 to 2025-06-30
-- Working days: 22
-- Overtime hours: 6.00
-- Late minutes: 45
-- Leave days: 2
-- Sick days: 1
+- **Period**: 2025-06-01 to 2025-06-30
+- **Working days**: 22
+- **Overtime hours**: 6.00
+- **Late minutes**: 45
+- **Leave days**: 2
+- **Sick days**: 1
 
-[No sources needed since this section provides general guidance]
+### Payroll Integration Example
+- **Payroll Run**: June 2025
+- **Attendance metrics**: 22 working days, 45 late minutes, 6 overtime hours
+- **Overtime earnings**: 12.50 Rupiah
+- **Late penalties**: 0.75 Rupiah (if applicable)
+- **Total overtime amount**: 12.50 Rupiah

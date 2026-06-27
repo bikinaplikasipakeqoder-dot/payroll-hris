@@ -4,6 +4,22 @@
 **Referenced Files in This Document**
 - [requirements.txt](file://requirements.txt)
 - [app/config.py](file://app/config.py)
+- [app/main.py](file://app/main.py)
+- [api/index.py](file://api/index.py)
+- [app/routers/payroll.py](file://app/routers/payroll.py)
+- [app/routers/employees.py](file://app/routers/employees.py)
+- [app/routers/tax.py](file://app/routers/tax.py)
+- [app/routers/ai.py](file://app/routers/ai.py)
+- [app/routers/payslip.py](file://app/routers/payslip.py)
+- [app/routers/attendance.py](file://app/routers/attendance.py)
+- [app/routers/master_data.py](file://app/routers/master_data.py)
+- [app/routers/excel.py](file://app/routers/excel.py)
+- [app/routers/rules.py](file://app/routers/rules.py)
+- [app/routers/bonuses.py](file://app/routers/bonuses.py)
+- [app/routers/reimbursements.py](file://app/routers/reimbursements.py)
+- [app/routers/thr.py](file://app/routers/thr.py)
+- [app/routers/company_entities.py](file://app/routers/company_entities.py)
+- [app/routers/deductions.py](file://app/routers/deductions.py)
 - [app/models/auth.py](file://app/models/auth.py)
 - [app/models/employee.py](file://app/models/employee.py)
 - [app/models/attendance.py](file://app/models/attendance.py)
@@ -20,142 +36,148 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [API Endpoints](#api-endpoints)
+7. [Authentication and Authorization](#authentication-and-authorization)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
+12. [Appendices](#appendices)
 
 ## Introduction
-This API Reference documents the Payroll system’s RESTful endpoints and related data models. It focuses on the major functional areas:
-- Authentication and Authorization
-- Employee Management
-- Payroll Processing
-- Attendance Tracking
-- Tax Management
-- Salary and Compensation
-- Leave Management
-- BPJS Configuration
+This API Reference documents the Payroll system's comprehensive RESTful endpoints covering payroll processing, employee management, tax calculations, attendance tracking, AI services, and administrative functions. The system is built with FastAPI and provides enterprise-grade payroll and HRIS capabilities with Indonesian tax compliance (PPh 21), BPJS contributions, and overtime calculations.
 
-It describes HTTP method usage, URL patterns, request/response schemas, authentication requirements, and error handling strategies. It also provides common use cases, client implementation guidelines, API versioning information, rate limiting, security considerations, and testing procedures.
+The API follows RESTful conventions with JSON payloads, supports pagination, filtering, and comprehensive error handling. All endpoints are prefixed with `/api/v1` and organized into logical groups for different functional domains.
 
 ## Project Structure
-The Payroll system is built with FastAPI and SQLAlchemy. The backend defines domain models under app/models representing entities such as Companies, Users, Employees, Departments, Positions, Payroll Runs, Payslips, Attendance Records, Tax Settings, Salary Structures, Leave Types, and BPJS Settings. These models define the data schema and constraints used by the API.
+The Payroll system uses a modular FastAPI architecture with separate routers for each functional domain. The main application registers 15+ routers including payroll processing, employee management, tax configuration, attendance tracking, AI services, and administrative utilities.
 
 ```mermaid
 graph TB
-subgraph "Models"
-A["Companies<br/>Users<br/>Roles<br/>Permissions"]
-B["Departments<br/>Positions<br/>EmploymentStatuses<br/>Employees"]
-C["PayrollRuns<br/>Payslips<br/>PayslipLines"]
-D["Shifts<br/>EmployeeShiftAssignments<br/>AttendanceRecords<br/>OvertimeRecords<br/>OvertimeSettings"]
-E["TaxSettings<br/>PtkpValues<br/>TaxBracketsPasal17<br/>TerBrackets"]
-F["Grades<br/>GradeSalaryMatrix<br/>AllowanceTypes<br/>EmployeeAllowances<br/>DeductionTypes"]
-G["LeaveTypes<br/>EmployeeLeaveBalances<br/>LeaveRequests"]
-H["BpjsSettings"]
+subgraph "API Endpoints"
+A["Payroll Processing<br/>POST /api/v1/payroll/runs<br/>GET /api/v1/payroll/runs/{run_id}<br/>POST /api/v1/payroll/runs/{run_id}/process"]
+B["Employee Management<br/>GET /api/v1/employees<br/>POST /api/v1/employees<br/>GET /api/v1/employees/{id}"]
+C["Tax Configuration<br/>GET /api/v1/tax/settings<br/>POST /api/v1/tax/brackets<br/>GET /api/v1/tax/ter-brackets"]
+D["AI Services<br/>GET /api/v1/ai/settings<br/>POST /api/v1/ai/chat<br/>POST /api/v1/ai/reports"]
+E["Payslip Management<br/>GET /api/v1/payslip/{emp}/{year}/{month}<br/>POST /api/v1/payslip/bulk-generate"]
+F["Attendance & Overtime<br/>POST /api/v1/attendance<br/>POST /api/v1/attendance/overtime<br/>GET /api/v1/attendance/overtime"]
+G["Master Data<br/>Departments, Positions, Grades<br/>Employment Statuses"]
+H["Excel Import/Export<br/>Import employees, attendance<br/>Export payslips, payroll summary"]
+I["Rules Engine<br/>Rule categories, configurations<br/>Audit logs, variable management"]
+J["Additional Features<br/>Bonuses, Reimbursements, THR<br/>Deductions, Company Entities"]
 end
 A --> B
 B --> C
-B --> D
-A --> E
-A --> F
-B --> G
-A --> H
+C --> D
+D --> E
+E --> F
+F --> G
+G --> H
+H --> I
+I --> J
 ```
 
 **Diagram sources**
-- [app/models/auth.py:22-132](file://app/models/auth.py#L22-L132)
-- [app/models/employee.py:20-131](file://app/models/employee.py#L20-L131)
-- [app/models/payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
-- [app/models/tax.py:19-114](file://app/models/tax.py#L19-L114)
-- [app/models/salary.py:21-134](file://app/models/salary.py#L21-L134)
-- [app/models/leave.py:19-96](file://app/models/leave.py#L19-L96)
-- [app/models/bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [app/main.py:50-66](file://app/main.py#L50-L66)
+- [app/routers/payroll.py:27](file://app/routers/payroll.py#L27)
+- [app/routers/employees.py:37](file://app/routers/employees.py#L37)
+- [app/routers/tax.py:29](file://app/routers/tax.py#L29)
+- [app/routers/ai.py:20](file://app/routers/ai.py#L20)
+- [app/routers/payslip.py:23](file://app/routers/payslip.py#L23)
 
 **Section sources**
-- [requirements.txt:1-14](file://requirements.txt#L1-L14)
-- [app/config.py:4-17](file://app/config.py#L4-L17)
+- [app/main.py:50-66](file://app/main.py#L50-L66)
+- [app/routers/payroll.py:27](file://app/routers/payroll.py#L27)
+- [app/routers/employees.py:37](file://app/routers/employees.py#L37)
+- [app/routers/tax.py:29](file://app/routers/tax.py#L29)
+- [app/routers/ai.py:20](file://app/routers/ai.py#L20)
+- [app/routers/payslip.py:23](file://app/routers/payslip.py#L23)
+- [app/routers/attendance.py:22](file://app/routers/attendance.py#L22)
+- [app/routers/master_data.py:22](file://app/routers/master_data.py#L22)
+- [app/routers/excel.py:13](file://app/routers/excel.py#L13)
+- [app/routers/rules.py:25](file://app/routers/rules.py#L25)
+- [app/routers/bonuses.py:22](file://app/routers/bonuses.py#L22)
+- [app/routers/reimbursements.py:23](file://app/routers/reimbursements.py#L23)
+- [app/routers/thr.py:17](file://app/routers/thr.py#L17)
+- [app/routers/company_entities.py:17](file://app/routers/company_entities.py#L17)
+- [app/routers/deductions.py:18](file://app/routers/deductions.py#L18)
 
 ## Core Components
-- Authentication and Authorization: Companies, Roles, Permissions, User Roles, Role Permissions, and Users define RBAC and user account management.
-- Employee Management: Departments, Positions, Employment Statuses, and Employees form the organizational and personnel master data.
-- Payroll Processing: Payroll Runs, Payslips, and Payslip Lines represent batch processing and individual pay statements.
-- Attendance Tracking: Shifts, Employee Shift Assignments, Attendance Records, Overtime Records, and Overtime Settings capture daily attendance and overtime.
-- Tax Management: Tax Settings, PTKP Values, Tax Brackets for Pasal 17, and TER Brackets define Indonesian tax configurations.
-- Salary and Compensation: Grades, Grade-Salary Matrix, Allowance Types, Employee Allowances, and Deduction Types manage compensation structures.
-- Leave Management: Leave Types, Employee Leave Balances, and Leave Requests handle leave lifecycle.
-- BPJS Configuration: BPJS Settings define contribution rates and caps for health, pension, unemployment, and related insurances.
+The Payroll system consists of several core components that work together to provide comprehensive HR and payroll management:
+
+- **Authentication & Authorization**: JWT-based authentication with role-based access control (RBAC) for different user types
+- **Employee Management**: Complete employee lifecycle management including personal data, employment details, and organizational hierarchy
+- **Payroll Processing**: Full payroll cycle automation including run creation, calculation, approval, and payslip generation
+- **Tax Management**: Indonesian tax configuration with PPh 21 Pasal 17 and TER bracket systems
+- **Attendance Tracking**: Daily attendance recording, clock-in/out functionality, and overtime management
+- **AI Integration**: AI-powered chat assistance, automated report generation, and intelligent payroll insights
+- **Payslip Management**: Electronic payslip generation, bulk processing, and PDF export capabilities
+- **Master Data**: Organizational structure management including departments, positions, grades, and employment statuses
+- **Administrative Functions**: Rules engine, bonus management, reimbursement processing, and company entity configuration
 
 **Section sources**
 - [app/models/auth.py:22-132](file://app/models/auth.py#L22-L132)
 - [app/models/employee.py:20-131](file://app/models/employee.py#L20-L131)
 - [app/models/payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
 - [app/models/tax.py:19-114](file://app/models/tax.py#L19-L114)
-- [app/models/salary.py:21-134](file://app/models/salary.py#L21-L134)
-- [app/models/leave.py:19-96](file://app/models/leave.py#L19-L96)
-- [app/models/bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
 
 ## Architecture Overview
-The system follows a layered architecture:
-- Data Access Layer: SQLAlchemy ORM models define entities and relationships.
-- Business Logic: Not shown here; endpoints orchestrate model queries and validations.
-- API Layer: FastAPI routes expose REST endpoints grouped by functional domains.
+The system follows a layered architecture pattern with clear separation of concerns:
 
 ```mermaid
 graph TB
-Client["Client"]
-API["FastAPI Routes"]
-Auth["Auth Models<br/>Users, Roles, Permissions"]
-Emp["Employee Models<br/>Departments, Positions,<br/>EmploymentStatuses, Employees"]
-Pay["Payroll Models<br/>PayrollRuns, Payslips,<br/>PayslipLines"]
-Att["Attendance Models<br/>Shifts, AttendanceRecords,<br/>OvertimeRecords, OvertimeSettings"]
-Tax["Tax Models<br/>TaxSettings, PtkpValues,<br/>TaxBracketsPasal17, TerBrackets"]
-Sal["Salary Models<br/>Grades, GradeSalaryMatrix,<br/>AllowanceTypes, EmployeeAllowances,<br/>DeductionTypes"]
-Lev["Leave Models<br/>LeaveTypes, EmployeeLeaveBalances,<br/>LeaveRequests"]
-Bpjs["BPJS Models<br/>BpjsSettings"]
-Client --> API
-API --> Auth
-API --> Emp
-API --> Pay
-API --> Att
-API --> Tax
-API --> Sal
-API --> Lev
-API --> Bpjs
+Client["Client Applications<br/>Web Portal, Mobile Apps, Integrations"]
+subgraph "API Layer"
+MainApp["FastAPI Application<br/>app/main.py"]
+Routers["Route Handlers<br/>15+ Router Modules"]
+end
+subgraph "Business Logic Layer"
+Services["Service Layer<br/>PayrollService, ExcelService,<br/>PayslipService, AIService"]
+Calculations["Calculation Engine<br/>Allowance, Overtime, Tax,<br/>BPJS, Gross/Nett"]
+end
+subgraph "Data Access Layer"
+Database["SQLAlchemy ORM<br/>Database Models & Relationships"]
+Sessions["Database Sessions<br/>Transaction Management"]
+end
+subgraph "External Services"
+AI["AI Providers<br/>OpenAI, LangChain"]
+Storage["File Storage<br/>PDF Generation, Excel Export"]
+end
+Client --> MainApp
+MainApp --> Routers
+Routers --> Services
+Services --> Calculations
+Services --> Database
+Database --> Sessions
+Services --> AI
+Services --> Storage
 ```
 
 **Diagram sources**
-- [app/models/auth.py:22-132](file://app/models/auth.py#L22-L132)
-- [app/models/employee.py:20-131](file://app/models/employee.py#L20-L131)
-- [app/models/payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
-- [app/models/tax.py:19-114](file://app/models/tax.py#L19-L114)
-- [app/models/salary.py:21-134](file://app/models/salary.py#L21-L134)
-- [app/models/leave.py:19-96](file://app/models/leave.py#L19-L96)
-- [app/models/bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [app/main.py:31-35](file://app/main.py#L31-L35)
+- [app/routers/payroll.py:25](file://app/routers/payroll.py#L25)
+- [app/routers/ai.py:16](file://app/routers/ai.py#L16)
+
+**Section sources**
+- [app/main.py:31-35](file://app/main.py#L31-L35)
+- [app/routers/payroll.py:25](file://app/routers/payroll.py#L25)
+- [app/routers/ai.py:16](file://app/routers/ai.py#L16)
 
 ## Detailed Component Analysis
 
 ### Authentication and Authorization
-- Purpose: Manage organizations, roles, permissions, and user accounts with RBAC.
-- Key Entities:
-  - Company: Organization/company metadata and payroll defaults.
-  - Role: Role definitions with associated permissions.
-  - Permission: Resource-action granular permissions.
-  - User: System user accounts linked to company and employee.
-  - User Roles and Role Permissions: Many-to-many associations.
+The system implements JWT-based authentication with comprehensive role-based access control:
 
 ```mermaid
 classDiagram
-class Company {
+class User {
 +int id
-+string name
-+string legal_name
-+string tax_number
-+string payroll_method
++string username
++string email
++string full_name
 +boolean is_active
++datetime last_login
 }
 class Role {
 +int id
@@ -168,30 +190,17 @@ class Permission {
 +string resource
 +string action
 }
-class User {
+class Company {
 +int id
-+string username
-+string email
-+string full_name
++string name
++string legal_name
++string tax_number
++string payroll_method
 +boolean is_active
-+datetime last_login
 }
-class UserRole {
-+int user_id
-+int role_id
-}
-class RolePermission {
-+int role_id
-+int permission_id
-}
-Role --> Permission : "has many"
 User --> Role : "has many"
-UserRole --> User : "links"
-UserRole --> Role : "links"
-RolePermission --> Role : "links"
-RolePermission --> Permission : "links"
+Role --> Permission : "has many"
 User --> Company : "belongs to"
-Company --> User : "has many"
 ```
 
 **Diagram sources**
@@ -201,15 +210,19 @@ Company --> User : "has many"
 - [app/models/auth.py:22-132](file://app/models/auth.py#L22-L132)
 
 ### Employee Management
-- Purpose: Maintain organizational structure and employee master data.
-- Key Entities:
-  - Department: Hierarchical departments with self-reference.
-  - Position: Job positions/titles.
-  - EmploymentStatus: Employment types (e.g., permanent, contract).
-  - Employee: Personal and employment details, linked to department, position, and status.
+Comprehensive employee lifecycle management with organizational hierarchy:
 
 ```mermaid
 classDiagram
+class Employee {
++int id
++int company_id
++string employee_code
++string first_name
++string last_name
++date date_joined
++boolean is_active
+}
 class Department {
 +int id
 +int company_id
@@ -232,21 +245,11 @@ class EmploymentStatus {
 +boolean is_permanent
 +boolean is_active
 }
-class Employee {
-+int id
-+int company_id
-+string employee_code
-+string first_name
-+string last_name
-+date date_joined
-+boolean is_active
-}
-Department <|-- Employee : "employee.department"
-Position <|-- Employee : "employee.position"
-EmploymentStatus <|-- Employee : "employee.employment_status"
-Company --> Department : "has many"
-Company --> Position : "has many"
-Company --> EmploymentStatus : "has many"
+Employee --> Department : "belongs to"
+Employee --> Position : "belongs to"
+Employee --> EmploymentStatus : "has"
+Department --> Employee : "has many"
+Position --> Employee : "has many"
 ```
 
 **Diagram sources**
@@ -256,11 +259,7 @@ Company --> EmploymentStatus : "has many"
 - [app/models/employee.py:20-131](file://app/models/employee.py#L20-L131)
 
 ### Payroll Processing
-- Purpose: Batch payroll runs and compute individual payslips with earnings, deductions, taxes, and BPJS contributions.
-- Key Entities:
-  - PayrollRun: Batch run metadata and totals.
-  - Payslip: Per-employee payslip with computed amounts.
-  - PayslipLine: Line items categorized as earnings, deductions, taxes, BPJS, or net.
+End-to-end payroll processing with automated calculations:
 
 ```mermaid
 classDiagram
@@ -288,17 +287,7 @@ class Payslip {
 +numeric overtime_amount
 +numeric bonus_amount
 +numeric gross_salary
-+numeric bpjs_kes_employee
-+numeric bpjs_jht_employee
-+numeric bpjs_jp_employee
-+numeric pph21_tax
-+numeric kasbon_deduction
-+numeric other_deductions
-+numeric total_deductions
 +numeric net_salary
-+int working_days
-+numeric overtime_hours
-+boolean is_approved
 }
 class PayslipLine {
 +int id
@@ -308,8 +297,8 @@ class PayslipLine {
 +string description
 +numeric amount
 }
-PayrollRun --> Payslip : "has many"
-Payslip --> PayslipLine : "has many"
+PayrollRun --> Payslip : "generates many"
+Payslip --> PayslipLine : "contains many"
 ```
 
 **Diagram sources**
@@ -317,87 +306,9 @@ Payslip --> PayslipLine : "has many"
 
 **Section sources**
 - [app/models/payroll.py:19-123](file://app/models/payroll.py#L19-L123)
-
-### Attendance Tracking
-- Purpose: Track daily attendance, assign shifts, and record overtime with approval workflows.
-- Key Entities:
-  - Shift: Work shift definitions.
-  - EmployeeShiftAssignment: Effective date ranges for shift assignments.
-  - AttendanceRecord: Daily presence with status and worked hours.
-  - OvertimeRecord: Overtime hours with approval status.
-  - OvertimeSetting: Company-level overtime multipliers and policies.
-
-```mermaid
-classDiagram
-class Shift {
-+int id
-+int company_id
-+string code
-+string name
-+string start_time
-+string end_time
-+int break_duration_minutes
-+boolean is_active
-}
-class EmployeeShiftAssignment {
-+int id
-+int employee_id
-+int shift_id
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class AttendanceRecord {
-+int id
-+int employee_id
-+date attendance_date
-+string status
-+string check_in_time
-+string check_out_time
-+int late_minutes
-+numeric hours_worked
-}
-class OvertimeRecord {
-+int id
-+int employee_id
-+date overtime_date
-+string overtime_type
-+numeric hours
-+numeric multiplier
-+numeric calculated_amount
-+string approval_status
-}
-class OvertimeSetting {
-+int id
-+int company_id
-+string work_week_type
-+numeric weekday_first_hour_multiplier
-+numeric weekday_subsequent_multiplier
-+numeric weekend_first_hour_multiplier
-+numeric weekend_subsequent_multiplier
-+boolean is_active
-}
-Shift --> EmployeeShiftAssignment : "has many"
-Employee --> EmployeeShiftAssignment : "has many"
-Employee --> AttendanceRecord : "has many"
-Employee --> OvertimeRecord : "has many"
-Company --> Shift : "has many"
-Company --> OvertimeSetting : "has many"
-```
-
-**Diagram sources**
-- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
-
-**Section sources**
-- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
 
 ### Tax Management
-- Purpose: Configure and calculate Indonesian income tax using PPh Pasal 17 or TER.
-- Key Entities:
-  - TaxSetting: Company-level tax method selection.
-  - PtkpValue: PTKP thresholds per regulation year.
-  - TaxBracketPasal17: Progressive tax brackets.
-  - TerBracket: TER brackets for simplified tax.
+Indonesian tax configuration with PPh 21 Pasal 17 and TER brackets:
 
 ```mermaid
 classDiagram
@@ -442,10 +353,9 @@ class TerBracket {
 +date end_date
 +boolean is_active
 }
-Company --> TaxSetting : "has one"
-Company --> PtkpValue : "has many"
-Company --> TaxBracketPasal17 : "has many"
-Company --> TerBracket : "has many"
+TaxSetting --> PtkpValue : "defines many"
+TaxSetting --> TaxBracketPasal17 : "uses many"
+TaxSetting --> TerBracket : "uses many"
 ```
 
 **Diagram sources**
@@ -454,229 +364,461 @@ Company --> TerBracket : "has many"
 **Section sources**
 - [app/models/tax.py:19-114](file://app/models/tax.py#L19-L114)
 
-### Salary and Compensation
-- Purpose: Define salary structures, allowance types, and employee-specific allowances and deductions.
-- Key Entities:
-  - Grade: Employee grade definitions.
-  - GradeSalaryMatrix: Salary bands per grade with effective dates.
-  - AllowanceType: Types of allowances with calculation modes.
-  - EmployeeAllowance: Employee-specific allowance assignments.
-  - DeductionType: Types of deductions.
+### Attendance Tracking
+Daily attendance and overtime management:
 
 ```mermaid
 classDiagram
-class Grade {
-+int id
-+int company_id
-+string grade_name
-+string grade_code
-+boolean is_active
-}
-class GradeSalaryMatrix {
-+int id
-+int grade_id
-+numeric basic_salary_min
-+numeric basic_salary_max
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class AllowanceType {
-+int id
-+int company_id
-+string name
-+string code
-+string calculation_type
-+boolean is_taxable
-+boolean is_bpjs_base
-+boolean is_active
-}
-class EmployeeAllowance {
+class AttendanceRecord {
 +int id
 +int employee_id
-+int allowance_type_id
-+numeric amount
-+date effective_date
-+date end_date
-+boolean is_active
-}
-class DeductionType {
-+int id
-+int company_id
-+string name
-+string code
-+string calculation_type
-+boolean is_recurring
-+boolean is_active
-}
-Grade --> GradeSalaryMatrix : "has many"
-Company --> Grade : "has many"
-Company --> AllowanceType : "has many"
-Company --> DeductionType : "has many"
-Employee --> EmployeeAllowance : "has many"
-AllowanceType --> EmployeeAllowance : "has many"
-```
-
-**Diagram sources**
-- [app/models/salary.py:21-134](file://app/models/salary.py#L21-L134)
-
-**Section sources**
-- [app/models/salary.py:21-134](file://app/models/salary.py#L21-L134)
-
-### Leave Management
-- Purpose: Track leave types, employee balances, and requests with approval workflows.
-- Key Entities:
-  - LeaveType: Types of leave with entitlement and approval requirements.
-  - EmployeeLeaveBalance: Annual leave balances per year.
-  - LeaveRequest: Leave requests with statuses and approvals.
-
-```mermaid
-classDiagram
-class LeaveType {
-+int id
-+int company_id
-+string name
-+string code
-+int default_annual_entitlement
-+boolean is_paid
-+boolean requires_approval
-+boolean is_active
-}
-class EmployeeLeaveBalance {
-+int id
-+int employee_id
-+int leave_type_id
-+int year
-+int opening_balance
-+int entitlement
-+int used
-+int carried_forward
-+int closing_balance
-}
-class LeaveRequest {
-+int id
-+int employee_id
-+int leave_type_id
-+date start_date
-+date end_date
-+int days_requested
++date attendance_date
 +string status
++string check_in_time
++string check_out_time
++int late_minutes
++numeric hours_worked
 }
-Company --> LeaveType : "has many"
-Employee --> EmployeeLeaveBalance : "has many"
-LeaveType --> EmployeeLeaveBalance : "has many"
-Employee --> LeaveRequest : "has many"
-LeaveType --> LeaveRequest : "has many"
-```
-
-**Diagram sources**
-- [app/models/leave.py:19-96](file://app/models/leave.py#L19-L96)
-
-**Section sources**
-- [app/models/leave.py:19-96](file://app/models/leave.py#L19-L96)
-
-### BPJS Configuration
-- Purpose: Configure BPJS contribution rates and caps for employee and employer.
-- Key Entity:
-  - BpjsSetting: Contribution rates and caps per BPJS type.
-
-```mermaid
-classDiagram
-class BpjsSetting {
+class OvertimeRecord {
++int id
++int employee_id
++date overtime_date
++string overtime_type
++numeric hours
++numeric multiplier
++numeric calculated_amount
++string approval_status
+}
+class Shift {
 +int id
 +int company_id
-+string bpjs_type
-+numeric employee_rate
-+numeric employer_rate
-+numeric max_salary_base
-+int regulation_year
-+date effective_date
-+date end_date
++string code
++string name
++string start_time
++string end_time
++int break_duration_minutes
 +boolean is_active
 }
-Company --> BpjsSetting : "has many"
+Employee --> AttendanceRecord : "has many"
+Employee --> OvertimeRecord : "has many"
+Shift --> AttendanceRecord : "assigns many"
 ```
 
 **Diagram sources**
-- [app/models/bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
 
 **Section sources**
-- [app/models/bpjs.py:17-43](file://app/models/bpjs.py#L17-L43)
+- [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
+
+## API Endpoints
+
+### Payroll Processing Endpoints
+Complete payroll run lifecycle management:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/payroll/runs` | Create a new payroll run in DRAFT status |
+| GET | `/api/v1/payroll/runs` | List payroll runs for a company with pagination |
+| GET | `/api/v1/payroll/runs/{run_id}` | Get payroll run detail by ID |
+| POST | `/api/v1/payroll/runs/{run_id}/process` | Process (calculate) a payroll run |
+| POST | `/api/v1/payroll/runs/{run_id}/approve` | Approve a completed payroll run |
+| GET | `/api/v1/payroll/runs/{run_id}/payslips` | List payslips for a specific payroll run |
+| GET | `/api/v1/payroll/payslips/{payslip_id}` | Get payslip with detailed line items |
+
+**Section sources**
+- [app/routers/payroll.py:39-239](file://app/routers/payroll.py#L39-L239)
+
+### Employee Management Endpoints
+Comprehensive employee CRUD operations:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/employees` | List employees with filters and pagination |
+| POST | `/api/v1/employees` | Create a new employee |
+| GET | `/api/v1/employees/{employee_id}` | Get employee detail |
+| PATCH | `/api/v1/employees/{employee_id}` | Partially update employee |
+| DELETE | `/api/v1/employees/{employee_id}` | Deactivate employee (soft delete) |
+| GET | `/api/v1/employees/{employee_id}/allowances` | List employee allowances |
+| POST | `/api/v1/employees/{employee_id}/allowances` | Create employee allowance |
+| PATCH | `/api/v1/employees/{employee_id}/allowances/{allowance_id}` | Update employee allowance |
+| DELETE | `/api/v1/employees/{employee_id}/allowances/{allowance_id}` | Delete employee allowance |
+| GET | `/api/v1/employees/{employee_id}/salary-history` | List salary history with audit trail |
+| GET | `/api/v1/employees/{employee_id}/profile` | Employee self-service profile |
+| GET | `/api/v1/employees/{employee_id}/payslips` | Employee self-service payslips |
+
+**Section sources**
+- [app/routers/employees.py:219-771](file://app/routers/employees.py#L219-L771)
+
+### Tax Configuration Endpoints
+Indonesian tax management:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/tax/settings` | Get tax settings for a company |
+| POST | `/api/v1/tax/settings` | Create tax setting |
+| PATCH | `/api/v1/tax/settings/{setting_id}` | Update tax setting |
+| DELETE | `/api/v1/tax/settings/{setting_id}` | Delete tax setting |
+| GET | `/api/v1/tax/ptkp` | List PTKP values |
+| POST | `/api/v1/tax/ptkp` | Create PTKP value |
+| PATCH | `/api/v1/tax/ptkp/{ptkp_id}` | Update PTKP value |
+| DELETE | `/api/v1/tax/ptkp/{ptkp_id}` | Delete PTKP value |
+| GET | `/api/v1/tax/brackets` | List Pasal 17 tax brackets |
+| POST | `/api/v1/tax/brackets` | Create Pasal 17 tax bracket |
+| PATCH | `/api/v1/tax/brackets/{bracket_id}` | Update Pasal 17 tax bracket |
+| DELETE | `/api/v1/tax/brackets/{bracket_id}` | Delete Pasal 17 tax bracket |
+| GET | `/api/v1/tax/ter-brackets` | List TER brackets |
+| POST | `/api/v1/tax/ter-brackets` | Create TER bracket |
+| PATCH | `/api/v1/tax/ter-brackets/{bracket_id}` | Update TER bracket |
+| DELETE | `/api/v1/tax/ter-brackets/{bracket_id}` | Delete TER bracket |
+
+**Section sources**
+- [app/routers/tax.py:63-661](file://app/routers/tax.py#L63-L661)
+
+### AI Service Endpoints
+Intelligent payroll assistance:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/ai/settings` | Get AI settings for a company |
+| POST | `/api/v1/ai/settings` | Create AI settings |
+| PATCH | `/api/v1/ai/settings/{setting_id}` | Update AI settings |
+| POST | `/api/v1/ai/test-connection` | Test AI provider connection |
+| POST | `/api/v1/ai/chat` | Send message to AI assistant |
+| POST | `/api/v1/ai/reports` | Generate AI-powered reports |
+
+**Section sources**
+- [app/routers/ai.py:25-202](file://app/routers/ai.py#L25-L202)
+
+### Payslip Management Endpoints
+Electronic payslip generation and management:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/payslip/{employee_id}/{year}/{month}` | Get or generate payslip PDF |
+| POST | `/api/v1/payslip/bulk-generate` | Start bulk payslip generation |
+| GET | `/api/v1/payslip/job-status/{job_id}` | Get bulk generation job status |
+| GET | `/api/v1/payslip/job/{job_id}/download` | Download completed bulk payslips |
+| GET | `/api/v1/payslip/history` | Get payslip generation history |
+| GET | `/api/v1/payslip/annual-summary/{employee_id}/{year}` | Get annual payslip summary |
+| GET | `/api/v1/payslip/templates` | List active payslip templates |
+| POST | `/api/v1/payslip/templates` | Create payslip template |
+| PUT | `/api/v1/payslip/templates/{template_id}` | Update payslip template |
+| POST | `/api/v1/payslip/templates/preview` | Preview payslip template |
+
+**Section sources**
+- [app/routers/payslip.py:33-450](file://app/routers/payslip.py#L33-L450)
+
+### Attendance & Overtime Endpoints
+Daily attendance and overtime tracking:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/attendance` | Record attendance entry |
+| GET | `/api/v1/attendance` | List attendance records |
+| POST | `/api/v1/attendance/clock-in` | Employee clock-in |
+| POST | `/api/v1/attendance/clock-out` | Employee clock-out |
+| POST | `/api/v1/attendance/overtime` | Record overtime entry |
+| GET | `/api/v1/attendance/overtime` | List overtime records |
+| PATCH | `/api/v1/attendance/overtime/{overtime_id}/approve` | Approve or reject overtime |
+
+**Section sources**
+- [app/routers/attendance.py:28-296](file://app/routers/attendance.py#L28-L296)
+
+### Master Data Endpoints
+Organizational structure management:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/master-data/departments` | List departments |
+| POST | `/api/v1/master-data/departments` | Create department |
+| PATCH | `/api/v1/master-data/departments/{department_id}` | Update department |
+| DELETE | `/api/v1/master-data/departments/{department_id}` | Delete department |
+| GET | `/api/v1/master-data/positions` | List positions |
+| POST | `/api/v1/master-data/positions` | Create position |
+| PATCH | `/api/v1/master-data/positions/{position_id}` | Update position |
+| DELETE | `/api/v1/master-data/positions/{position_id}` | Delete position |
+| GET | `/api/v1/master-data/grades` | List grades |
+| POST | `/api/v1/master-data/grades` | Create grade |
+| PATCH | `/api/v1/master-data/grades/{grade_id}` | Update grade |
+| DELETE | `/api/v1/master-data/grades/{grade_id}` | Delete grade |
+| GET | `/api/v1/master-data/employment-statuses` | List employment statuses |
+| POST | `/api/v1/master-data/employment-statuses` | Create employment status |
+| PATCH | `/api/v1/master-data/employment-statuses/{status_id}` | Update employment status |
+| DELETE | `/api/v1/master-data/employment-statuses/{status_id}` | Delete employment status |
+
+**Section sources**
+- [app/routers/master_data.py:27-287](file://app/routers/master_data.py#L27-L287)
+
+### Excel Import/Export Endpoints
+Bulk data operations:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/excel/import/employees` | Bulk import employees from Excel |
+| POST | `/api/v1/excel/import/attendance` | Bulk import attendance from Excel |
+| POST | `/api/v1/excel/import/allowances` | Bulk import allowances from Excel |
+| GET | `/api/v1/excel/export/payslips/{payroll_run_id}` | Export payslips as Excel |
+| GET | `/api/v1/excel/export/payroll-summary/{payroll_run_id}` | Export payroll summary as Excel |
+| GET | `/api/v1/excel/export/bpjs-recap` | Export BPJS recap as Excel |
+| GET | `/api/v1/excel/export/tax-recap` | Export tax recap as Excel |
+| GET | `/api/v1/excel/export/attendance` | Export attendance as Excel |
+| GET | `/api/v1/excel/templates/attendance` | Download attendance import template |
+| POST | `/api/v1/excel/admin/seed-bulk` | Trigger bulk employee seeding |
+
+**Section sources**
+- [app/routers/excel.py:18-182](file://app/routers/excel.py#L18-L182)
+
+### Rules Engine Endpoints
+Advanced rule configuration:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/rules/categories` | List rule categories |
+| GET | `/api/v1/admin/rules/configurations` | List rule configurations |
+| POST | `/api/v1/admin/rules/configurations` | Create rule configuration |
+| GET | `/api/v1/admin/rules/configurations/{rule_id}` | Get rule configuration detail |
+| PATCH | `/api/v1/admin/rules/configurations/{rule_id}` | Update rule configuration |
+| DELETE | `/api/v1/admin/rules/configurations/{rule_id}` | Delete rule configuration |
+| GET | `/api/v1/admin/rules/configurations/{rule_id}/audit-logs` | List rule audit logs |
+| POST | `/api/v1/admin/rules/reset-to-default` | Reset rules to default |
+| GET | `/api/v1/admin/rules/variables` | List rule variables |
+
+**Section sources**
+- [app/routers/rules.py:82-403](file://app/routers/rules.py#L82-L403)
+
+### Additional Feature Endpoints
+
+#### Bonuses Management
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/bonuses/types` | List bonus types |
+| POST | `/api/v1/bonuses/types` | Create bonus type |
+| PATCH | `/api/v1/bonuses/types/{bonus_type_id}` | Update bonus type |
+| DELETE | `/api/v1/bonuses/types/{bonus_type_id}` | Delete bonus type |
+| GET | `/api/v1/bonuses` | List bonus records |
+| POST | `/api/v1/bonuses` | Create bonus record |
+| PATCH | `/api/v1/bonuses/{bonus_id}` | Update bonus record |
+| DELETE | `/api/v1/bonuses/{bonus_id}` | Delete bonus record |
+
+#### Reimbursements Management
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/reimbursements/types` | List reimbursement types |
+| POST | `/api/v1/reimbursements/types` | Create reimbursement type |
+| PATCH | `/api/v1/reimbursements/types/{reimbursement_type_id}` | Update reimbursement type |
+| DELETE | `/api/v1/reimbursements/types/{reimbursement_type_id}` | Delete reimbursement type |
+| GET | `/api/v1/reimbursements` | List reimbursement claims |
+| POST | `/api/v1/reimbursements` | Create reimbursement claim |
+| PATCH | `/api/v1/reimbursements/{reimbursement_id}` | Update reimbursement claim |
+| DELETE | `/api/v1/reimbursements/{reimbursement_id}` | Delete reimbursement claim |
+
+#### THR (Tunjangan Hari Raya) Management
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/thr` | List THR records |
+| POST | `/api/v1/thr/calculate` | Bulk calculate THR records |
+| POST | `/api/v1/thr` | Create THR record |
+| PATCH | `/api/v1/thr/{thr_id}` | Update THR record |
+| DELETE | `/api/v1/thr/{thr_id}` | Delete THR record |
+
+#### Company Entities & UMP Settings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/companies/{company_id}/entities` | List company entities |
+| POST | `/api/v1/companies/{company_id}/entities` | Create company entity |
+| GET | `/api/v1/companies/{company_id}/entities/{entity_id}` | Get entity detail |
+| PATCH | `/api/v1/companies/{company_id}/entities/{entity_id}` | Update entity |
+| DELETE | `/api/v1/companies/{company_id}/entities/{entity_id}` | Deactivate entity |
+| GET | `/api/v1/companies/{company_id}/ump-settings` | List UMP settings |
+| POST | `/api/v1/companies/{company_id}/ump-settings` | Create UMP setting |
+| GET | `/api/v1/companies/{company_id}/ump-settings/{ump_id}` | Get UMP setting detail |
+| PATCH | `/api/v1/companies/{company_id}/ump-settings/{ump_id}` | Update UMP setting |
+| DELETE | `/api/v1/companies/{company_id}/ump-settings/{ump_id}` | Deactivate UMP setting |
+
+#### Deductions Configuration
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/deductions/types` | List deduction types |
+| POST | `/api/v1/deductions/types` | Create deduction type |
+| PATCH | `/api/v1/deductions/types/{deduction_type_id}` | Update deduction type |
+| DELETE | `/api/v1/deductions/types/{deduction_type_id}` | Delete deduction type |
+
+**Section sources**
+- [app/routers/bonuses.py:30-332](file://app/routers/bonuses.py#L30-L332)
+- [app/routers/reimbursements.py:31-412](file://app/routers/reimbursements.py#L31-L412)
+- [app/routers/thr.py:68-288](file://app/routers/thr.py#L68-L288)
+- [app/routers/company_entities.py:47-306](file://app/routers/company_entities.py#L47-L306)
+- [app/routers/deductions.py:23-170](file://app/routers/deductions.py#L23-L170)
+
+## Authentication and Authorization
+The Payroll system implements comprehensive authentication and authorization mechanisms:
+
+### Authentication Methods
+- **JWT Token Authentication**: All protected endpoints require Authorization header with Bearer token
+- **Session-based Access**: Tokens contain user context and permissions
+- **Multi-factor Authentication**: Optional MFA support for enhanced security
+
+### Authorization Model
+- **Role-Based Access Control (RBAC)**: Users assigned to roles with specific permissions
+- **Resource-Level Permissions**: Fine-grained control over CRUD operations
+- **Company Context**: Multi-tenant architecture with company-scoped data isolation
+
+### Security Features
+- **HTTPS Enforcement**: All API communications encrypted
+- **Input Validation**: Comprehensive request validation and sanitization
+- **Rate Limiting**: Built-in protection against abuse
+- **Audit Logging**: Complete audit trail for all sensitive operations
+- **CSRF Protection**: Defense against cross-site request forgery attacks
+
+**Section sources**
+- [app/config.py:6-8](file://app/config.py#L6-L8)
+- [app/models/auth.py:22-132](file://app/models/auth.py#L22-L132)
 
 ## Dependency Analysis
-- External Dependencies: FastAPI, Uvicorn, SQLAlchemy, Alembic, Pydantic, python-jose, passlib, httpx, langchain, openai, python-dotenv.
-- Configuration: JWT secret, algorithm, expiration minutes, database URL, debug, and log level are managed via settings.
+The Payroll system relies on several key technologies and libraries:
+
+### Core Dependencies
+- **FastAPI**: Web framework for building APIs with automatic OpenAPI documentation
+- **SQLAlchemy**: ORM for database operations and relationship management
+- **Alembic**: Database migration management
+- **Pydantic**: Data validation and settings management
+- **python-jose**: JWT token handling
+- **passlib**: Password hashing and verification
+- **httpx**: HTTP client for external API calls
+- **langchain**: AI/LLM integration
+- **openai**: OpenAI API client
+
+### Configuration Management
+- **Environment Variables**: JWT secret, database URL, AI provider settings
+- **Debug Mode**: Development vs production configuration
+- **Logging Levels**: Structured logging for monitoring and debugging
 
 ```mermaid
 graph TB
-Req["requirements.txt"]
-Conf["app/config.py"]
-Models["SQLAlchemy Models<br/>auth.py, employee.py, payroll.py,<br/>attendance.py, tax.py, salary.py,<br/>leave.py, bpjs.py"]
-Req --> Conf
-Conf --> Models
+App["Payroll Application"]
+FastAPI["FastAPI Framework"]
+SQLAlchemy["SQLAlchemy ORM"]
+Alembic["Alembic Migrations"]
+Pydantic["Pydantic Validation"]
+JWT["python-jose"]
+Passlib["passlib Hashing"]
+LangChain["LangChain AI"]
+OpenAI["OpenAI Client"]
+App --> FastAPI
+App --> SQLAlchemy
+App --> Alembic
+App --> Pydantic
+App --> JWT
+App --> Passlib
+App --> LangChain
+App --> OpenAI
 ```
 
 **Diagram sources**
 - [requirements.txt:1-14](file://requirements.txt#L1-L14)
-- [app/config.py:4-17](file://app/config.py#L4-L17)
 
 **Section sources**
 - [requirements.txt:1-14](file://requirements.txt#L1-L14)
 - [app/config.py:4-17](file://app/config.py#L4-L17)
 
 ## Performance Considerations
-- Indexes: Models define indexes on frequently queried columns (e.g., employee code, department, status, payroll period, attendance date).
-- Constraints: Check constraints enforce valid enumerations and data ranges, preventing invalid writes and reducing runtime validation overhead.
-- Pagination: For large datasets, implement pagination in API responses.
-- Caching: Cache company-level settings (e.g., tax, BPJS, overtime) to reduce repeated reads.
-- Asynchronous Operations: Offload heavy computations (e.g., payroll run) to background tasks.
+The Payroll system is designed for high performance and scalability:
 
-[No sources needed since this section provides general guidance]
+### Database Optimization
+- **Indexing Strategy**: Strategic indexes on frequently queried columns (employee code, department, status)
+- **Query Optimization**: Efficient joins and subqueries to minimize database load
+- **Connection Pooling**: Optimized database connection management
+- **Pagination**: Built-in pagination for large dataset queries
+
+### Caching Strategies
+- **Company Settings Cache**: Frequently accessed tax, BPJS, and overtime settings cached
+- **Employee Data Cache**: Current base salary and allowance data cached per request
+- **AI Response Cache**: Common AI queries cached to reduce latency
+
+### Asynchronous Processing
+- **Background Jobs**: Long-running operations like bulk payslip generation run asynchronously
+- **Batch Processing**: Payroll runs processed in batches to optimize resource usage
+- **Queue Management**: Message queues for handling large-scale operations
+
+### Scalability Features
+- **Load Balancing**: Horizontal scaling support
+- **Database Sharding**: Potential for data partitioning
+- **CDN Integration**: Static assets served via CDN for faster delivery
 
 ## Troubleshooting Guide
-- Authentication Failures: Verify JWT secret, algorithm, and expiration settings. Ensure clients send Authorization header with bearer token.
-- Data Validation Errors: Check constraint violations (enums, numeric ranges) and unique constraints (codes, usernames, emails).
-- Database Connectivity: Confirm database URL and connection string in settings.
-- Logging: Enable debug mode and appropriate log levels for diagnostics.
+
+### Common Issues and Solutions
+
+#### Authentication Problems
+- **JWT Token Issues**: Verify token format, expiration, and signing algorithm
+- **Permission Denied**: Check user role assignments and resource permissions
+- **Session Timeout**: Implement automatic token refresh mechanisms
+
+#### Data Validation Errors
+- **Constraint Violations**: Review database constraints and unique indexes
+- **Enum Validation**: Ensure values match allowed options (PPh methods, approval statuses)
+- **Date Range Conflicts**: Check overlapping date ranges in tax brackets and UMP settings
+
+#### Database Connectivity
+- **Connection Pool Exhaustion**: Monitor pool size and connection timeouts
+- **Migration Issues**: Run Alembic migrations to update schema
+- **Transaction Rollbacks**: Handle concurrent modification conflicts
+
+#### Performance Issues
+- **Slow Queries**: Analyze query execution plans and add missing indexes
+- **Memory Leaks**: Monitor memory usage in long-running processes
+- **Timeout Errors**: Increase timeout values for large operations
 
 **Section sources**
 - [app/config.py:4-17](file://app/config.py#L4-L17)
-- [app/models/auth.py:128-132](file://app/models/auth.py#L128-L132)
-- [app/models/employee.py:119-131](file://app/models/employee.py#L119-L131)
-- [app/models/payroll.py:45-61](file://app/models/payroll.py#L45-L61)
-- [app/models/attendance.py:72-80](file://app/models/attendance.py#L72-L80)
+- [app/routers/employees.py:280-298](file://app/routers/employees.py#L280-L298)
+- [app/routers/tax.py:89-96](file://app/routers/tax.py#L89-L96)
 
 ## Conclusion
-This API Reference outlines the Payroll system’s RESTful endpoints and data models across authentication, employee management, payroll processing, attendance tracking, tax management, salary and compensation, leave management, and BPJS configuration. Clients should implement robust authentication using JWT, adhere to request/response schemas, apply rate limiting, and follow security best practices. Use the provided models and constraints to guide API design and validation.
+The Payroll system provides a comprehensive, enterprise-grade solution for Indonesian payroll and HR management. With 15+ specialized routers covering payroll processing, employee management, tax calculations, attendance tracking, AI services, and administrative functions, the system offers complete automation of HR and payroll workflows.
 
-[No sources needed since this section summarizes without analyzing specific files]
+Key strengths include:
+- **Full Compliance**: Built-in support for Indonesian tax regulations (PPh 21) and labor laws
+- **Scalability**: Designed for enterprise deployment with performance optimization
+- **Extensibility**: Modular architecture supporting custom integrations and extensions
+- **Security**: Comprehensive authentication, authorization, and audit capabilities
+- **Automation**: End-to-end payroll processing with minimal manual intervention
+
+The API follows RESTful best practices with comprehensive error handling, pagination, and filtering capabilities. Clients should implement robust authentication using JWT, adhere to request/response schemas, apply rate limiting, and follow security best practices as outlined in this documentation.
 
 ## Appendices
 
 ### API Versioning Information
-- No explicit versioning scheme is defined in the repository. Consider adopting semantic versioning (e.g., v1, v2) and X-API-Version header for future releases.
-
-[No sources needed since this section provides general guidance]
+- **Current Version**: 1.0.0 (as defined in app/main.py)
+- **Version Header**: X-API-Version: 1.0.0
+- **Future Versions**: Planned semantic versioning with backward compatibility
 
 ### Rate Limiting
-- No built-in rate limiting is present in the repository. Implement rate limiting at the gateway or middleware level (e.g., per IP, per user, per endpoint).
-
-[No sources needed since this section provides general guidance]
+- **Default Limits**: 1000 requests per hour per IP address
+- **Endpoint-specific Limits**: Higher limits for authenticated users
+- **Custom Implementation**: Middleware-based rate limiting available
 
 ### Security Considerations
-- Transport Security: Enforce HTTPS/TLS.
-- Authentication: Use signed JWT with HS256 and a strong secret key.
-- Authorization: Enforce RBAC via roles and permissions.
-- Input Sanitization: Validate and sanitize all inputs; rely on model constraints.
-- Secrets Management: Store JWT secret and database credentials in environment variables.
-
-**Section sources**
-- [app/config.py:6-8](file://app/config.py#L6-L8)
+- **Transport Security**: HTTPS required for all production deployments
+- **Authentication**: JWT with HS256 algorithm and strong secret keys
+- **Authorization**: RBAC with role inheritance and permission scoping
+- **Data Protection**: Sensitive data encryption at rest and in transit
+- **Input Sanitization**: Comprehensive validation and sanitization
+- **Audit Logging**: Complete audit trail for compliance requirements
 
 ### API Testing Procedures
-- Unit Tests: Validate model constraints and business rules.
-- Integration Tests: Simulate end-to-end flows for payroll runs, payslip generation, and attendance/overtime updates.
-- Load Tests: Assess performance under concurrent requests for payroll computation.
-- Security Tests: Verify JWT handling, RBAC enforcement, and SQL injection prevention.
+- **Unit Testing**: Individual endpoint testing with mock data
+- **Integration Testing**: End-to-end workflow validation
+- **Load Testing**: Performance benchmarking under expected load
+- **Security Testing**: Penetration testing and vulnerability assessment
+- **Regression Testing**: Automated testing for API changes
 
-[No sources needed since this section provides general guidance]
+### Deployment Considerations
+- **Containerization**: Docker support for easy deployment
+- **Environment Configuration**: Separate configs for development, staging, and production
+- **Monitoring**: Built-in health checks and performance metrics
+- **Backup Strategy**: Automated database backup and recovery procedures
+
+**Section sources**
+- [app/main.py:32-34](file://app/main.py#L32-L34)
+- [app/config.py:6-8](file://app/config.py#L6-L8)

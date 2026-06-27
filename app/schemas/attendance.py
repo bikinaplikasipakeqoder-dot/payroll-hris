@@ -11,6 +11,25 @@ from pydantic import Field, field_validator
 from app.schemas.base import BaseSchema, PaginatedResponse
 
 
+# --- Attendance Summary Schemas ---
+
+
+class AttendanceSummaryResponse(BaseSchema):
+    """Monthly attendance summary per employee."""
+
+    employee_id: int
+    employee_code: str
+    employee_name: str
+    total_working_days: int
+    present_days: int
+    absent_days: int
+    sick_days: int
+    leave_days: int
+    permitted_days: int
+    late_minutes: int
+    attendance_percentage: float
+
+
 # --- Attendance Schemas ---
 
 
