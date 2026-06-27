@@ -246,8 +246,12 @@ def list_employees(
             | (Employee.last_name.ilike(pattern))
         )
 
-    total = query.count()
-    employees = query.offset(skip).limit(limit).all()
+    # Fetch page and total count in a single query using a window function
+    # to avoid an extra round trip to Turso.
+    paged_query = query.add_columns(func.count().over().label("total"))
+    rows = paged_query.offset(skip).limit(limit).all()
+    employees = [row[0] for row in rows]
+    total = rows[0][1] if rows else 0
 
     # Batch-load the latest active base salary for all returned employees
     # in a single query to avoid N+1 round trips to Turso.
