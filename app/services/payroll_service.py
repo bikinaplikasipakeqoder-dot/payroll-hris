@@ -380,13 +380,14 @@ class PayrollService:
     def _finalize_payroll_run(payroll_run: PayrollRun, session: Session) -> None:
         """Compute totals from all payslips and mark run as COMPLETED."""
         from app.models.payroll import Payslip
+        from sqlalchemy import func
 
         row = session.query(
-            session.func.count(Payslip.id).label("count"),
-            session.func.coalesce(session.func.sum(Payslip.gross_salary), Decimal("0")).label("gross"),
-            session.func.coalesce(session.func.sum(Payslip.total_deductions), Decimal("0")).label("deductions"),
-            session.func.coalesce(session.func.sum(Payslip.pph21_tax), Decimal("0")).label("tax"),
-            session.func.coalesce(session.func.sum(Payslip.net_salary), Decimal("0")).label("net"),
+            func.count(Payslip.id).label("count"),
+            func.coalesce(func.sum(Payslip.gross_salary), Decimal("0")).label("gross"),
+            func.coalesce(func.sum(Payslip.total_deductions), Decimal("0")).label("deductions"),
+            func.coalesce(func.sum(Payslip.pph21_tax), Decimal("0")).label("tax"),
+            func.coalesce(func.sum(Payslip.net_salary), Decimal("0")).label("net"),
         ).filter(Payslip.payroll_run_id == payroll_run.id).first()
 
         payroll_run.total_employees = int(row.count) if row else 0
