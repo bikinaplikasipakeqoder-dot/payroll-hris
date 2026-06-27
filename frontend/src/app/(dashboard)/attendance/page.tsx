@@ -68,6 +68,18 @@ interface OvertimeRecord {
   updated_at: string | null;
 }
 
+interface OvertimeSummary {
+  employee_id: number;
+  employee_code: string;
+  employee_name: string;
+  weekday_days: number;
+  weekday_hours: number;
+  weekend_holiday_days: number;
+  weekend_holiday_hours: number;
+  total_days: number;
+  total_hours: number;
+}
+
 interface Employee {
   id: number;
   employee_code: string;
@@ -116,6 +128,7 @@ export default function AttendancePage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [summaries, setSummaries] = useState<AttendanceSummary[]>([]);
   const [overtimeRecords, setOvertimeRecords] = useState<OvertimeRecord[]>([]);
+  const [overtimeSummaries, setOvertimeSummaries] = useState<OvertimeSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [monthFilter, setMonthFilter] = useState<number>(CURRENT_MONTH);
@@ -123,7 +136,9 @@ export default function AttendancePage() {
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<AttendanceSummary | null>(null);
+  const [selectedOvertimeEmployee, setSelectedOvertimeEmployee] = useState<OvertimeSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [overtimeDetailLoading, setOvertimeDetailLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showOvertimeModal, setShowOvertimeModal] = useState(false);
   const [submittingOvertime, setSubmittingOvertime] = useState(false);
@@ -177,14 +192,10 @@ export default function AttendancePage() {
     setLoading(true);
     setError(null);
     try {
-      const startDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-01`;
-      const lastDay = new Date(yearFilter, monthFilter, 0).getDate();
-      const endDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-      const data = await api.get<OvertimeRecord[]>(
-        `/api/v1/attendance/overtime?company_id=1&date_from=${startDate}&date_to=${endDate}&skip=0&limit=1000`
+      const data = await api.get<OvertimeSummary[]>(
+        `/api/v1/attendance/overtime/summary?company_id=1&month=${monthFilter}&year=${yearFilter}`
       );
-      setOvertimeRecords(data);
+      setOvertimeSummaries(data);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -193,6 +204,24 @@ export default function AttendancePage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOvertimeDetail = async (employeeId: number) => {
+    setOvertimeDetailLoading(true);
+    try {
+      const startDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-01`;
+      const lastDay = new Date(yearFilter, monthFilter, 0).getDate();
+      const endDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const data = await api.get<OvertimeRecord[]>(
+        `/api/v1/attendance/overtime?employee_id=${employeeId}&date_from=${startDate}&date_to=${endDate}&skip=0&limit=1000`
+      );
+      setOvertimeRecords(data);
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Gagal memuat detail lembur.');
+    } finally {
+      setOvertimeDetailLoading(false);
     }
   };
 
@@ -234,12 +263,25 @@ export default function AttendancePage() {
         approval_status: 'APPROVED',
         approved_by: 1,
       });
+      if (selectedOvertimeEmployee) {
+        await fetchOvertimeDetail(selectedOvertimeEmployee.employee_id);
+      }
       await fetchOvertime();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Gagal menyetujui lembur.');
     } finally {
       setApprovingId(null);
     }
+  };
+
+  const handleOpenOvertimeDetail = (summary: OvertimeSummary) => {
+    setSelectedOvertimeEmployee(summary);
+    fetchOvertimeDetail(summary.employee_id);
+  };
+
+  const handleCloseOvertimeDetail = () => {
+    setSelectedOvertimeEmployee(null);
+    setOvertimeRecords([]);
   };
 
   const handleCreateOvertime = async (e: React.FormEvent) => {
@@ -790,7 +832,7 @@ export default function AttendancePage() {
                 Coba Lagi
               </Button>
             </div>
-          ) : overtimeRecords.length === 0 ? (
+          ) : overtimeSummaries.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Clock className="w-8 h-8 text-gray-400" />
@@ -809,19 +851,28 @@ export default function AttendancePage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tanggal
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Kode Karyawan
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tipe
+                        Nama Karyawan
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Jam
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hari Kerja (hari)
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status Approval
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hari Kerja (jam)
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Libur / Cuti Bersama (hari)
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Libur / Cuti Bersama (jam)
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total (hari)
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total (jam)
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Aksi
@@ -829,53 +880,172 @@ export default function AttendancePage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {overtimeRecords.map((record) => (
-                      <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(record.overtime_date)}
-                        </td>
+                    {overtimeSummaries.map((summary) => (
+                      <tr
+                        key={summary.employee_id}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleOpenOvertimeDetail(summary)}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
-                          EMP-{String(record.employee_id).padStart(4, '0')}
+                          {summary.employee_code}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            record.overtime_type === 'WEEKDAY'
-                              ? 'bg-blue-100 text-blue-700'
-                              : record.overtime_type === 'WEEKEND'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}>
-                            {record.overtime_type === 'WEEKDAY'
-                              ? 'Hari Kerja'
-                              : record.overtime_type === 'WEEKEND'
-                              ? 'Akhir Pekan'
-                              : 'Hari Libur'}
-                          </span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {summary.employee_name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
-                          {record.hours} jam
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-700 text-center font-medium">
+                          {summary.weekday_days}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${APPROVAL_STATUS_BADGE[record.approval_status] || 'bg-gray-100 text-gray-700'}`}>
-                            {record.approval_status}
-                          </span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-700 text-center font-medium">
+                          {summary.weekday_hours}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-700 text-center font-medium">
+                          {summary.weekend_holiday_days}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-700 text-center font-medium">
+                          {summary.weekend_holiday_hours}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center font-medium">
+                          {summary.total_days}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center font-medium">
+                          {summary.total_hours}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                          {record.approval_status === 'PENDING' && (
-                            <button
-                              onClick={() => handleApproveOvertime(record.id)}
-                              disabled={approvingId === record.id}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              Setujui
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenOvertimeDetail(summary);
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Detail
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Overtime Detail Modal */}
+          {selectedOvertimeEmployee && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Detail Lembur
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {selectedOvertimeEmployee.employee_code} - {selectedOvertimeEmployee.employee_name} | {MONTH_OPTIONS.find(m => m.value === monthFilter)?.label} {yearFilter}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCloseOvertimeDetail}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 overflow-auto flex-1">
+                  {overtimeDetailLoading ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <div className="animate-pulse space-y-4">
+                        <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto" />
+                        <div className="h-48 bg-gray-200 rounded" />
+                      </div>
+                    </div>
+                  ) : overtimeRecords.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p>Belum ada detail lembur untuk periode ini.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Tanggal
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Tipe
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Jam
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Catatan
+                            </th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Aksi
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {overtimeRecords.map((record) => (
+                            <tr key={record.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                {formatDate(record.overtime_date)}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  record.overtime_type === 'WEEKDAY'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : record.overtime_type === 'WEEKEND'
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : 'bg-orange-100 text-orange-700'
+                                }`}>
+                                  {record.overtime_type === 'WEEKDAY'
+                                    ? 'Hari Kerja'
+                                    : record.overtime_type === 'WEEKEND'
+                                    ? 'Akhir Pekan'
+                                    : 'Hari Libur'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
+                                {record.hours} jam
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${APPROVAL_STATUS_BADGE[record.approval_status] || 'bg-gray-100 text-gray-700'}`}>
+                                  {record.approval_status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">
+                                {record.notes || '-'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-center">
+                                {record.approval_status === 'PENDING' && (
+                                  <button
+                                    onClick={() => handleApproveOvertime(record.id)}
+                                    disabled={approvingId === record.id}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    Setujui
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 border-t border-gray-200 flex justify-end">
+                  <Button variant="secondary" onClick={handleCloseOvertimeDetail}>
+                    Tutup
+                  </Button>
+                </div>
               </div>
             </div>
           )}

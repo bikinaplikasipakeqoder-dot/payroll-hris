@@ -30,6 +30,20 @@ class AttendanceSummaryResponse(BaseSchema):
     attendance_percentage: float
 
 
+class OvertimeSummaryResponse(BaseSchema):
+    """Monthly overtime summary per employee."""
+
+    employee_id: int
+    employee_code: str
+    employee_name: str
+    weekday_days: int
+    weekday_hours: float
+    weekend_holiday_days: int
+    weekend_holiday_hours: float
+    total_days: int
+    total_hours: float
+
+
 # --- Attendance Schemas ---
 
 

@@ -18,6 +18,7 @@ from app.schemas.attendance import (
     OvertimeApprovalRequest,
     OvertimeRecordCreate,
     OvertimeRecordResponse,
+    OvertimeSummaryResponse,
 )
 
 router = APIRouter(prefix="/attendance", tags=["Attendance & Overtime"])
@@ -331,6 +332,81 @@ def create_overtime(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get(
+    "/overtime/summary",
+    response_model=List[OvertimeSummaryResponse],
+    summary="Monthly overtime summary by employee",
+)
+def overtime_summary(
+    company_id: int = Query(..., description="Company ID"),
+    month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
+    year: int = Query(..., ge=2000, le=2100, description="Year"),
+    db: Session = Depends(get_db),
+):
+    """Return monthly overtime summary per active employee.
+
+    Groups overtime into workday (WEEKDAY) and non-workday (WEEKEND/HOLIDAY).
+    """
+    from calendar import monthrange
+
+    employees = (
+        db.query(Employee.id, Employee.employee_code, Employee.full_name)
+        .filter(Employee.company_id == company_id, Employee.is_active == True)
+        .all()
+    )
+
+    _, last_day = monthrange(year, month)
+    period_start = date(year, month, 1)
+    period_end = date(year, month, last_day)
+
+    records = (
+        db.query(OvertimeRecord)
+        .filter(
+            OvertimeRecord.employee_id.in_([e.id for e in employees]),
+            OvertimeRecord.overtime_date >= period_start,
+            OvertimeRecord.overtime_date <= period_end,
+        )
+        .all()
+    )
+
+    grouped: Dict[int, List[OvertimeRecord]] = {}
+    for rec in records:
+        grouped.setdefault(rec.employee_id, []).append(rec)
+
+    result = []
+    for emp in employees:
+        emp_records = grouped.get(emp.id, [])
+        weekday_days = 0
+        weekday_hours = 0.0
+        weekend_holiday_days = 0
+        weekend_holiday_hours = 0.0
+
+        for rec in emp_records:
+            hours = float(rec.hours) if rec.hours else 0.0
+            if rec.overtime_type == "WEEKDAY":
+                weekday_days += 1
+                weekday_hours += hours
+            else:
+                weekend_holiday_days += 1
+                weekend_holiday_hours += hours
+
+        result.append(
+            OvertimeSummaryResponse(
+                employee_id=emp.id,
+                employee_code=emp.employee_code,
+                employee_name=emp.full_name,
+                weekday_days=weekday_days,
+                weekday_hours=round(weekday_hours, 2),
+                weekend_holiday_days=weekend_holiday_days,
+                weekend_holiday_hours=round(weekend_holiday_hours, 2),
+                total_days=weekday_days + weekend_holiday_days,
+                total_hours=round(weekday_hours + weekend_holiday_hours, 2),
+            )
+        )
+
+    return result
 
 
 @router.get(
