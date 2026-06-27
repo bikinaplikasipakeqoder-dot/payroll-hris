@@ -13,7 +13,7 @@ from app.models.bonus import Bonus, BonusType, Reimbursement, ReimbursementType,
 from app.models.employee import Department, Employee
 from app.models.kasbon import KasbonRequest
 from app.models.salary import AllowanceType, EmployeeAllowance, Grade
-from app.models.attendance import AttendanceRecord
+from app.models.attendance import AttendanceRecord, OvertimeRecord
 
 
 VALID_PTKP = {"TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"}
@@ -24,6 +24,7 @@ VALID_REIMBURSEMENT_STATUS = {"PENDING", "APPROVED", "REJECTED"}
 VALID_THR_HOLIDAYS = {"IDUL_FITRI", "CHRISTMAS", "NYEPI", "WAISAK"}
 VALID_THR_BASIS = {"BASE_SALARY", "PRORATED"}
 VALID_KASBON_STATUS = {"PENDING", "APPROVED", "DISBURSED", "COMPLETED", "REJECTED"}
+VALID_OVERTIME_TYPES = {"WEEKDAY", "WEEKEND", "HOLIDAY"}
 
 
 class ExcelImportService:
@@ -681,6 +682,85 @@ class ExcelImportService:
                 expense_date=expense_date,
                 description=ExcelImportService._safe_str(row.get("description")),
                 approval_status=status,
+            ))
+
+        if valid_records:
+            for i in range(0, len(valid_records), 50):
+                db.add_all(valid_records[i:i + 50])
+                db.flush()
+            db.commit()
+
+        result = {
+            "total_rows": total_rows,
+            "success_count": len(valid_records),
+            "error_count": len(errors),
+            "errors": [{"row": e["row"], "field": e.get("field"), "message": e["message"]} for e in errors],
+        }
+        error_bytes = ExcelImportService._generate_error_report(errors) if errors else None
+        return result, error_bytes
+
+    @staticmethod
+    def import_overtime(file_bytes: bytes, company_id: int, db: Session) -> tuple[dict, Optional[bytes]]:
+        """Bulk import overtime records from Excel file."""
+        df = pd.read_excel(BytesIO(file_bytes))
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+        emp_map = {
+            row.employee_code: row.id
+            for row in db.query(Employee.id, Employee.employee_code).filter(
+                Employee.company_id == company_id
+            ).all()
+        }
+
+        errors = []
+        valid_records = []
+        total_rows = len(df)
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            emp_code = ExcelImportService._safe_str(row.get("employee_code"))
+
+            if not emp_code:
+                errors.append({"row": row_num, "code": "", "field": "employee_code", "message": "employee_code is required"})
+                continue
+            emp_id = emp_map.get(emp_code)
+            if emp_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "employee_code", "message": f"Employee not found: {emp_code}"})
+                continue
+
+            overtime_date = ExcelImportService._parse_date(row.get("overtime_date"))
+            if not overtime_date:
+                errors.append({"row": row_num, "code": emp_code, "field": "overtime_date", "message": "overtime_date is required or invalid format (YYYY-MM-DD)"})
+                continue
+
+            overtime_type = ExcelImportService._safe_str(row.get("overtime_type"))
+            if not overtime_type or overtime_type.upper() not in VALID_OVERTIME_TYPES:
+                errors.append({"row": row_num, "code": emp_code, "field": "overtime_type", "message": f"Invalid overtime_type: {overtime_type}. Must be one of {VALID_OVERTIME_TYPES}"})
+                continue
+            overtime_type = overtime_type.upper()
+
+            try:
+                hours = float(row.get("hours"))
+                if hours <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "hours", "message": "hours must be a positive number"})
+                continue
+
+            multiplier = 1.5
+            if overtime_type == "WEEKEND":
+                multiplier = 2.0
+            elif overtime_type == "HOLIDAY":
+                multiplier = 3.0
+
+            valid_records.append(OvertimeRecord(
+                employee_id=emp_id,
+                overtime_date=overtime_date,
+                overtime_type=overtime_type,
+                hours=hours,
+                multiplier=multiplier,
+                approval_status="PENDING",
+                notes=ExcelImportService._safe_str(row.get("notes")),
             ))
 
         if valid_records:

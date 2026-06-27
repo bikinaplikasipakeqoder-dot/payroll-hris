@@ -326,18 +326,24 @@ def create_overtime(
     summary="List overtime records",
 )
 def list_overtime(
-    employee_id: int = Query(..., description="Employee ID"),
+    employee_id: Optional[int] = Query(None, description="Employee ID"),
+    company_id: Optional[int] = Query(None, description="Company ID (admin view)"),
     date_from: Optional[date] = Query(None, description="Start date filter"),
     date_to: Optional[date] = Query(None, description="End date filter"),
     approval_status: Optional[str] = Query(None, description="Filter by approval status"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
-    """List overtime records for an employee with optional filters."""
-    query = db.query(OvertimeRecord).filter(
-        OvertimeRecord.employee_id == employee_id
-    )
+    """List overtime records for an employee or company with optional filters."""
+    query = db.query(OvertimeRecord)
+
+    if employee_id is not None:
+        query = query.filter(OvertimeRecord.employee_id == employee_id)
+    elif company_id is not None:
+        query = query.join(Employee, OvertimeRecord.employee_id == Employee.id).filter(
+            Employee.company_id == company_id
+        )
 
     if date_from is not None:
         query = query.filter(OvertimeRecord.overtime_date >= date_from)

@@ -4,12 +4,14 @@ import { useRef, useState } from 'react';
 import { Download, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
 
 interface ExcelActionsProps {
-  module: 'bonuses' | 'thr' | 'reimbursements' | 'kasbon';
+  module: 'bonuses' | 'thr' | 'reimbursements' | 'kasbon' | 'overtime';
   companyId?: number;
+  month?: number;
+  year?: number;
   onImportSuccess?: () => void;
 }
 
-export function ExcelActions({ module, companyId = 1, onImportSuccess }: ExcelActionsProps) {
+export function ExcelActions({ module, companyId = 1, month, year, onImportSuccess }: ExcelActionsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -31,10 +33,11 @@ export function ExcelActions({ module, companyId = 1, onImportSuccess }: ExcelAc
   };
 
   const handleExport = () => {
-    downloadFile(
-      `/api/v1/excel/export/${module}?company_id=${companyId}`,
-      `${module}_${companyId}.xlsx`
-    );
+    let url = `/api/v1/excel/export/${module}?company_id=${companyId}`;
+    if (module === 'overtime' && month && year) {
+      url += `&month=${month}&year=${year}`;
+    }
+    downloadFile(url, `${module}_${companyId}.xlsx`);
   };
 
   const handleTemplate = () => {
@@ -107,6 +110,7 @@ export function ExcelActions({ module, companyId = 1, onImportSuccess }: ExcelAc
     thr: 'THR',
     reimbursements: 'Reimbursement',
     kasbon: 'Pinjaman',
+    overtime: 'Lembur',
   };
 
   return (

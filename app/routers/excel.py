@@ -177,6 +177,29 @@ def import_kasbon(
     return ImportResult(**result)
 
 
+@router.post("/import/overtime", response_model=ImportResult)
+def import_overtime(
+    file: UploadFile = File(...),
+    company_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Bulk import overtime records from Excel file."""
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(400, "File must be .xlsx or .xls")
+
+    contents = file.file.read()
+    result, error_bytes = ExcelImportService.import_overtime(contents, company_id, db)
+
+    if error_bytes:
+        return StreamingResponse(
+            io.BytesIO(error_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=overtime_errors.xlsx"}
+        )
+
+    return ImportResult(**result)
+
+
 # --- Export Endpoints ---
 
 @router.get("/export/payslips/{payroll_run_id}")
@@ -305,6 +328,22 @@ def export_kasbon(
     )
 
 
+@router.get("/export/overtime")
+def export_overtime(
+    company_id: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(..., ge=2020, le=2030),
+    db: Session = Depends(get_db),
+):
+    """Export overtime records for a month as Excel."""
+    data = ExcelExportService.export_overtime(company_id, month, year, db)
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=overtime_{year}_{month:02d}.xlsx"}
+    )
+
+
 # --- Template Endpoints ---
 
 @router.get("/templates/attendance")
@@ -365,6 +404,17 @@ def download_kasbon_template():
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=kasbon_template.xlsx"}
+    )
+
+
+@router.get("/templates/overtime")
+def download_overtime_template():
+    """Download an empty overtime import template."""
+    data = ExcelExportService.generate_overtime_template()
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=overtime_template.xlsx"}
     )
 
 

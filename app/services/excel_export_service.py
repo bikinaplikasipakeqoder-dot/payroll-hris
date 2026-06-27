@@ -9,7 +9,7 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
-from app.models.attendance import AttendanceRecord
+from app.models.attendance import AttendanceRecord, OvertimeRecord
 from app.models.bonus import Bonus, BonusType, Reimbursement, ReimbursementType, THRRecord
 from app.models.employee import Department, Employee
 from app.models.kasbon import KasbonRequest
@@ -414,6 +414,95 @@ class ExcelExportService:
         ExcelExportService._freeze_header(ws)
         ExcelExportService._auto_width(ws)
         ExcelExportService._apply_currency_format(ws, [5, 6])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    # ─── Overtime ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def export_overtime(company_id: int, period_month: int, period_year: int, db: Session) -> bytes:
+        """Export overtime records for a specific company and month/year."""
+        start_date = date(period_year, period_month, 1)
+        if period_month == 12:
+            end_date = date(period_year + 1, 1, 1)
+        else:
+            end_date = date(period_year, period_month + 1, 1)
+
+        records = (
+            db.query(OvertimeRecord)
+            .join(Employee, OvertimeRecord.employee_id == Employee.id)
+            .filter(
+                Employee.company_id == company_id,
+                OvertimeRecord.overtime_date >= start_date,
+                OvertimeRecord.overtime_date < end_date,
+            )
+            .order_by(OvertimeRecord.overtime_date.asc(), Employee.employee_code.asc())
+            .all()
+        )
+
+        employee_ids = [r.employee_id for r in records]
+        employees = {
+            e.id: e
+            for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+        } if employee_ids else {}
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Overtime"
+        headers = [
+            "employee_code",
+            "full_name",
+            "overtime_date",
+            "overtime_type",
+            "hours",
+            "multiplier",
+            "approval_status",
+            "notes",
+        ]
+        ws.append(headers)
+
+        for rec in records:
+            emp = employees.get(rec.employee_id)
+            ws.append([
+                emp.employee_code if emp else "",
+                emp.full_name if emp else "",
+                rec.overtime_date.isoformat(),
+                rec.overtime_type,
+                ExcelExportService._decimal_to_float(rec.hours),
+                ExcelExportService._decimal_to_float(rec.multiplier),
+                rec.approval_status,
+                rec.notes or "",
+            ])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    @staticmethod
+    def generate_overtime_template() -> bytes:
+        """Generate an empty overtime import template with sample rows."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Overtime Template"
+        headers = [
+            "employee_code",
+            "overtime_date",
+            "overtime_type",
+            "hours",
+            "notes",
+        ]
+        ws.append(headers)
+        ws.append(["EMP0001", "2026-06-26", "WEEKDAY", 3, "Lembur proyek A"])
+        ws.append(["EMP0001", "2026-06-27", "WEEKEND", 4, "Lembur hari Sabtu"])
+        ws.append(["EMP0001", "2026-06-17", "HOLIDAY", 2, "Lembur hari libur nasional"])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
 
         output = BytesIO()
         wb.save(output)

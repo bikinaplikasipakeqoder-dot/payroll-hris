@@ -16,9 +16,12 @@ import {
   Upload,
   X,
   Eye,
+  Plus,
 } from 'lucide-react';
 import { api, ApiError, API_BASE } from '@/lib/api';
 import Button from '@/components/ui/Button';
+import { ExcelActions } from '@/components/ui/ExcelActions';
+import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
 
 interface AttendanceRecord {
   id: number;
@@ -63,6 +66,13 @@ interface OvertimeRecord {
   notes: string | null;
   created_at: string;
   updated_at: string | null;
+}
+
+interface Employee {
+  id: number;
+  employee_code: string;
+  first_name: string;
+  last_name: string | null;
 }
 
 type Tab = 'attendance' | 'overtime';
@@ -114,6 +124,16 @@ export default function AttendancePage() {
   const [importing, setImporting] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<AttendanceSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [showOvertimeModal, setShowOvertimeModal] = useState(false);
+  const [submittingOvertime, setSubmittingOvertime] = useState(false);
+  const [overtimeForm, setOvertimeForm] = useState({
+    employee_id: '',
+    overtime_date: '',
+    overtime_type: 'WEEKDAY',
+    hours: '',
+    notes: '',
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAttendanceSummary = async () => {
@@ -157,8 +177,12 @@ export default function AttendancePage() {
     setLoading(true);
     setError(null);
     try {
+      const startDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-01`;
+      const lastDay = new Date(yearFilter, monthFilter, 0).getDate();
+      const endDate = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
       const data = await api.get<OvertimeRecord[]>(
-        `/api/v1/attendance/overtime?employee_id=1&skip=0&limit=100`
+        `/api/v1/attendance/overtime?company_id=1&date_from=${startDate}&date_to=${endDate}&skip=0&limit=1000`
       );
       setOvertimeRecords(data);
     } catch (err) {
@@ -172,6 +196,15 @@ export default function AttendancePage() {
     }
   };
 
+  const fetchEmployees = async () => {
+    try {
+      const data = await api.get<Employee[]>('/api/v1/employees?company_id=1&skip=0&limit=1000');
+      setEmployees(data);
+    } catch (err) {
+      console.error('Failed to load employees', err);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'attendance') {
       fetchAttendanceSummary();
@@ -179,6 +212,10 @@ export default function AttendancePage() {
       fetchOvertime();
     }
   }, [activeTab, monthFilter, yearFilter]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
 
   const handleOpenDetail = (summary: AttendanceSummary) => {
     setSelectedEmployee(summary);
@@ -202,6 +239,38 @@ export default function AttendancePage() {
       alert(err instanceof ApiError ? err.message : 'Gagal menyetujui lembur.');
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleCreateOvertime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!overtimeForm.employee_id || !overtimeForm.overtime_date || !overtimeForm.hours) {
+      alert('Karyawan, tanggal, dan jam lembur wajib diisi.');
+      return;
+    }
+
+    setSubmittingOvertime(true);
+    try {
+      await api.post('/api/v1/attendance/overtime', {
+        employee_id: Number(overtimeForm.employee_id),
+        overtime_date: overtimeForm.overtime_date,
+        overtime_type: overtimeForm.overtime_type,
+        hours: Number(overtimeForm.hours),
+        notes: overtimeForm.notes || null,
+      });
+      setShowOvertimeModal(false);
+      setOvertimeForm({
+        employee_id: '',
+        overtime_date: '',
+        overtime_type: 'WEEKDAY',
+        hours: '',
+        notes: '',
+      });
+      await fetchOvertime();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Gagal menambahkan lembur.');
+    } finally {
+      setSubmittingOvertime(false);
     }
   };
 
@@ -661,6 +730,50 @@ export default function AttendancePage() {
       {/* Overtime Tab Content */}
       {activeTab === 'overtime' && (
         <>
+          {/* Overtime Toolbar */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <select
+                    value={monthFilter}
+                    onChange={(e) => setMonthFilter(Number(e.target.value))}
+                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    {MONTH_OPTIONS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <select
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(Number(e.target.value))}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  {YEAR_OPTIONS.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <ExcelActions
+                  module="overtime"
+                  companyId={1}
+                  month={monthFilter}
+                  year={yearFilter}
+                  onImportSuccess={fetchOvertime}
+                />
+                <Button variant="primary" size="sm" onClick={() => setShowOvertimeModal(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Tambah Lembur
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {loading ? (
             <div className="text-center py-12 text-gray-500">
               <div className="animate-pulse space-y-4">
@@ -725,8 +838,18 @@ export default function AttendancePage() {
                           EMP-{String(record.employee_id).padStart(4, '0')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                            {record.overtime_type}
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            record.overtime_type === 'WEEKDAY'
+                              ? 'bg-blue-100 text-blue-700'
+                              : record.overtime_type === 'WEEKEND'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {record.overtime_type === 'WEEKDAY'
+                              ? 'Hari Kerja'
+                              : record.overtime_type === 'WEEKEND'
+                              ? 'Akhir Pekan'
+                              : 'Hari Libur'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
@@ -753,6 +876,100 @@ export default function AttendancePage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Add Overtime Modal */}
+          {showOvertimeModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Tambah Lembur
+                  </h3>
+                  <button
+                    onClick={() => setShowOvertimeModal(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateOvertime} className="p-6 space-y-4">
+                  <EmployeeSearchSelect
+                    employees={employees}
+                    value={overtimeForm.employee_id}
+                    onChange={(value) => setOvertimeForm({ ...overtimeForm, employee_id: value })}
+                    label="Karyawan"
+                  />
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tanggal Lembur
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={overtimeForm.overtime_date}
+                      onChange={(e) => setOvertimeForm({ ...overtimeForm, overtime_date: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tipe Lembur
+                    </label>
+                    <select
+                      value={overtimeForm.overtime_type}
+                      onChange={(e) => setOvertimeForm({ ...overtimeForm, overtime_type: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="WEEKDAY">Hari Kerja</option>
+                      <option value="WEEKEND">Akhir Pekan</option>
+                      <option value="HOLIDAY">Hari Libur</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Jam Lembur
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      required
+                      value={overtimeForm.hours}
+                      onChange={(e) => setOvertimeForm({ ...overtimeForm, hours: e.target.value })}
+                      placeholder="Contoh: 3"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Keterangan
+                    </label>
+                    <textarea
+                      value={overtimeForm.notes}
+                      onChange={(e) => setOvertimeForm({ ...overtimeForm, notes: e.target.value })}
+                      placeholder="Keterangan lembur (opsional)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <Button variant="secondary" type="button" onClick={() => setShowOvertimeModal(false)}>
+                      Batal
+                    </Button>
+                    <Button variant="primary" type="submit" loading={submittingOvertime}>
+                      Simpan
+                    </Button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
