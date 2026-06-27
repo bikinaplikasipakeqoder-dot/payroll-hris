@@ -23,20 +23,24 @@
 - [payslip_pdf_service.py](file://app/services/payslip_pdf_service.py)
 - [payslip_builder.py](file://app/services/payslip_builder.py)
 - [config_loader.py](file://app/services/config_loader.py)
+- [employee_loader.py](file://app/services/employee_loader.py)
 - [allowance.py](file://app/calculations/allowance.py)
 - [overtime.py](file://app/calculations/overtime.py)
 - [payroll.py](file://app/routers/payroll.py)
 - [payroll.py](file://app/routers/payslip.py)
 - [decimal_utils.py](file://app/utils/decimal_utils.py)
+- [page.tsx](file://frontend/src/app/(dashboard)/payroll/page.tsx)
+- [ProgressModal.tsx](file://frontend/src/components/payslip/ProgressModal.tsx)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive bulk payslip generation capabilities with background job processing
-- Enhanced automated computation system with pure calculation modules
-- Integrated advanced workflow management with job tracking and progress monitoring
-- Implemented template-based PDF generation with customizable styling
-- Added comprehensive approval workflows and audit tracking
+- Added comprehensive chunked payroll processing system with batch endpoint support
+- Enhanced eligibility validation with join-date cutoff logic (15th day cutoff)
+- Implemented real-time progress tracking for frontend batch processing
+- Added new preview endpoints for eligibility counting and ID retrieval
+- Updated endpoint limits from 100 to 1000 employees per request
+- Integrated frontend batch processing with progress monitoring
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -44,17 +48,22 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Automated Computation Engine](#automated-computation-engine)
-7. [Bulk Generation and Workflow Management](#bulk-generation-and-workflow-management)
-8. [Template-Based PDF Generation](#template-based-pdf-generation)
-9. [Approval Workflows and Compliance](#approval-workflows-and-compliance)
-10. [Performance Considerations](#performance-considerations)
-11. [Troubleshooting Guide](#troubleshooting-guide)
-12. [Conclusion](#conclusion)
-13. [Appendices](#appendices)
+6. [Chunked Payroll Processing System](#chunked-payroll-processing-system)
+7. [Enhanced Eligibility Validation](#enhanced-eligibility-validation)
+8. [Real-time Progress Tracking](#real-time-progress-tracking)
+9. [Automated Computation Engine](#automated-computation-engine)
+10. [Bulk Generation and Workflow Management](#bulk-generation-and-workflow-management)
+11. [Template-Based PDF Generation](#template-based-pdf-generation)
+12. [Approval Workflows and Compliance](#approval-workflows-and-compliance)
+13. [Performance Considerations](#performance-considerations)
+14. [Troubleshooting Guide](#troubleshooting-guide)
+15. [Conclusion](#conclusion)
+16. [Appendices](#appendices)
 
 ## Introduction
 This document explains the complete payroll processing system with automated computation, bulk generation, and comprehensive workflow management for Indonesia-based operations. The system features sophisticated batch processing orchestration, detailed payslip computation, attendance and salary integration, tax and BPJS adherence, and robust approval and audit controls. It covers payroll run configuration, payslip generation, batch processing workflows, approval processes, calculation algorithms, payslip line item processing, automated payment generation, integration with attendance records, salary structures, tax calculations, BPJS contributions, scheduling, approval workflows, and compliance reporting features.
+
+**Updated** Added comprehensive chunked payroll processing system with batch endpoint support, enhanced eligibility validation with join-date cutoff logic, real-time progress tracking for frontend batch processing, and new preview endpoints for eligibility counting and ID retrieval. Updated endpoint limits from 100 to 1000 employees per request.
 
 ## Project Structure
 The system is organized around domain-focused SQLAlchemy models with enhanced service layers for automated computation and bulk processing. The architecture includes pure calculation modules, service orchestration, and comprehensive workflow management with background job processing.
@@ -82,22 +91,29 @@ O["payslip_pdf_service.py<br/>PDF Generation & Templates"]
 P["payslip_builder.py<br/>Payslip Construction"]
 Q["config_loader.py<br/>Configuration Management"]
 R["decimal_utils.py<br/>Precision Handling"]
+S["employee_loader.py<br/>Eligibility Validation & Data Loading"]
 end
 subgraph "Calculation Engine"
-S["allowance.py<br/>Allowance Calculations"]
-T["overtime.py<br/>Overtime Computations"]
-U["payroll.py<br/>Tax & BPJS Calculations"]
-V["payroll.py<br/>Gross/Nett Methods"]
+T["allowance.py<br/>Allowance Calculations"]
+U["overtime.py<br/>Overtime Computations"]
+V["payroll.py<br/>Tax & BPJS Calculations"]
+W["payroll.py<br/>Gross/Nett Methods"]
 end
 subgraph "API Layer"
-W["payroll.py<br/>Payroll Endpoints"]
-X["payroll.py<br/>Payslip Endpoints"]
+X["payroll.py<br/>Payroll Endpoints"]
+Y["payroll.py<br/>Payslip Endpoints"]
+Z["payroll.py<br/>Preview Endpoints"]
+AA["payroll.py<br/>Batch Processing Endpoints"]
+end
+subgraph "Frontend Layer"
+BB["page.tsx<br/>Payroll Processing UI"]
+CC["ProgressModal.tsx<br/>Real-time Progress Tracking"]
 end
 subgraph "Runtime"
-Y["database.py<br/>Engine, Session, get_db(), init_db()"]
-Z["seed_data.py<br/>Indonesian defaults seeding"]
-AA["env.py<br/>Alembic env for migrations"]
-BB["requirements.txt<br/>Dependencies"]
+DD["database.py<br/>Engine, Session, get_db(), init_db()"]
+EE["seed_data.py<br/>Indonesian defaults seeding"]
+FF["env.py<br/>Alembic env for migrations"]
+GG["requirements.txt<br/>Dependencies"]
 end
 A --> |"references"| B
 B --> |"references"| D
@@ -116,14 +132,19 @@ M --> |"uses"| S
 M --> |"uses"| T
 M --> |"uses"| U
 M --> |"uses"| V
+M --> |"uses"| W
 M --> |"generates"| P
 P --> |"creates"| J
 N --> |"manages"| J
 O --> |"renders"| J
 Q --> |"provides"| M
-W --> |"calls"| M
-X --> |"calls"| N
-X --> |"calls"| O
+X --> |"calls"| M
+Y --> |"calls"| N
+Y --> |"calls"| O
+Z --> |"calls"| S
+AA --> |"calls"| M
+BB --> |"interacts with"| AA
+CC --> |"polls"| Y
 ```
 
 **Diagram sources**
@@ -135,6 +156,9 @@ X --> |"calls"| O
 - [config_loader.py:35-144](file://app/services/config_loader.py#L35-L144)
 - [allowance.py:19-122](file://app/calculations/allowance.py#L19-L122)
 - [overtime.py:26-200](file://app/calculations/overtime.py#L26-L200)
+- [employee_loader.py:42-312](file://app/services/employee_loader.py#L42-L312)
+- [payroll.py:36-83](file://app/routers/payroll.py#L36-L83)
+- [payroll.py:198-235](file://app/routers/payroll.py#L198-L235)
 
 **Section sources**
 - [database.py:17-63](file://app/database.py#L17-L63)
@@ -149,9 +173,13 @@ X --> |"calls"| O
 - **PayslipTemplate**: Admin-editable HTML templates for customizable PDF generation
 - **PayslipRecord**: Metadata tracking for generated PDF files with status and file paths
 - **PayrollConfig**: Frozen configuration snapshot containing tax, BPJS, and overtime settings
+- **EmployeeLoader**: Enhanced with eligibility validation and batch processing capabilities
+- **BatchProcessRequest/Response**: API contracts for chunked payroll processing
 - **Pure Calculation Modules**: Stateless calculation engines for allowances, overtime, taxes, and BPJS
 - **Service Layer**: Orchestration services for batch processing, bulk generation, and PDF rendering
 - **Workflow Management**: Comprehensive approval workflows with audit trails and compliance tracking
+
+**Updated** Added EmployeeLoader with eligibility validation, BatchProcessRequest/Response schemas, and enhanced service layer capabilities.
 
 **Section sources**
 - [payroll.py:19-197](file://app/models/payroll.py#L19-L197)
@@ -159,6 +187,8 @@ X --> |"calls"| O
 - [payslip_bulk_service.py:27-345](file://app/services/payslip_bulk_service.py#L27-L345)
 - [payslip_pdf_service.py:36-508](file://app/services/payslip_pdf_service.py#L36-L508)
 - [config_loader.py:24-144](file://app/services/config_loader.py#L24-L144)
+- [employee_loader.py:42-312](file://app/services/employee_loader.py#L42-L312)
+- [payroll.py:79-95](file://app/schemas/payroll.py#L79-L95)
 
 ## Architecture Overview
 The system uses a comprehensive layered architecture with pure calculation modules, service orchestration, and advanced workflow management:
@@ -179,23 +209,39 @@ PJ["PayslipGenerationJob"]
 PT["PayslipTemplate"]
 PRC["PayslipRecord"]
 PC["PayrollConfig"]
+EL["EmployeeLoader"]
+BPR["BatchProcessRequest"]
+BPRSP["BatchProcessResponse"]
 CALC["Pure Calculation Engine"]
 SERVICE["Service Layer"]
 API["API Layer"]
+PREVIEW["Preview Endpoints"]
+BATCH["Batch Processing Endpoints"]
+FRONTEND["Frontend Layer"]
 PR --> PS
 PS --> PL
 PJ --> PS
 PT --> PS
 PRC --> PS
 PC --> SERVICE
+EL --> SERVICE
+BPR --> BATCH
+BPRSP --> BATCH
 CALC --> SERVICE
 SERVICE --> API
+PREVIEW --> API
+BATCH --> API
+FRONTEND --> BATCH
 ```
 
 **Diagram sources**
 - [payroll.py:19-197](file://app/models/payroll.py#L19-L197)
 - [payroll_service.py:51-478](file://app/services/payroll_service.py#L51-L478)
 - [payslip_bulk_service.py:27-345](file://app/services/payslip_bulk_service.py#L27-L345)
+- [employee_loader.py:42-312](file://app/services/employee_loader.py#L42-L312)
+- [payroll.py:79-95](file://app/schemas/payroll.py#L79-L95)
+- [payroll.py:36-83](file://app/routers/payroll.py#L36-L83)
+- [payroll.py:198-235](file://app/routers/payroll.py#L198-L235)
 
 ## Detailed Component Analysis
 
@@ -286,17 +332,32 @@ class PayslipGenerationJob {
 +datetime started_at
 +datetime completed_at
 }
+class BatchProcessRequest {
++int[] employee_ids
++bool finalize
+}
+class BatchProcessResponse {
++int payroll_run_id
++string status
++int processed_count
++int total_count
++int batch_size
++bool finalized
+}
 PayrollRun "1" --> "*" Payslip : "contains"
 Payslip "1" --> "*" PayslipLine : "has"
 PayslipGenerationJob "1" --> "*" Payslip : "processes"
+BatchProcessRequest "1" --> "*" BatchProcessResponse : "produces"
 ```
 
 **Diagram sources**
 - [payroll.py:64-197](file://app/models/payroll.py#L64-L197)
+- [payroll.py:79-95](file://app/schemas/payroll.py#L79-L95)
 
 **Section sources**
 - [payroll.py:64-124](file://app/models/payroll.py#L64-L124)
 - [payroll.py:126-197](file://app/models/payroll.py#L126-L197)
+- [payroll.py:79-95](file://app/schemas/payroll.py#L79-L95)
 
 ### Attendance and Overtime Integration
 The system integrates comprehensive attendance tracking with sophisticated overtime calculation:
@@ -322,6 +383,136 @@ BuildPayslip --> End(["Complete"])
 **Section sources**
 - [attendance.py:21-134](file://app/models/attendance.py#L21-L134)
 - [payroll_service.py:262-378](file://app/services/payroll_service.py#L262-L378)
+
+## Chunked Payroll Processing System
+The system now features a comprehensive chunked payroll processing system designed to handle large-scale payroll operations without timing out:
+
+### Batch Processing Architecture
+```mermaid
+sequenceDiagram
+participant Client as "Client"
+participant API as "Payroll Router"
+participant Service as "PayrollService"
+participant DB as "Database"
+participant Worker as "Background Worker"
+Client->>API : POST /payroll/runs/{run_id}/process-batch
+API->>Service : process_payroll_batch(employee_ids, finalize)
+Service->>DB : Load config once per batch
+Service->>DB : Load only requested employees
+Service->>DB : Load attendance for employees
+Service->>DB : Delete existing payslips (idempotent)
+Service->>Service : Process each employee
+Service->>DB : Add payslips to database
+Service->>Service : Build progress response
+DB-->>API : Progress data
+API-->>Client : BatchProcessResponse
+Note over Client,API : Real-time progress monitoring
+```
+
+**Diagram sources**
+- [payroll.py:198-235](file://app/routers/payroll.py#L198-L235)
+- [payroll_service.py:294-370](file://app/services/payroll_service.py#L294-L370)
+
+**Updated** Added comprehensive batch processing system with chunked processing, idempotent operations, and progress tracking.
+
+**Section sources**
+- [payroll.py:198-235](file://app/routers/payroll.py#L198-L235)
+- [payroll_service.py:294-370](file://app/services/payroll_service.py#L294-L370)
+- [payroll.py:79-95](file://app/schemas/payroll.py#L79-L95)
+
+### Batch Processing Request/Response Model
+The system defines clear contracts for batch processing operations:
+
+- **BatchProcessRequest**: Contains employee_ids list and finalize flag for controlling run completion
+- **BatchProcessResponse**: Provides progress tracking with processed_count, total_count, and batch_size metrics
+- **Idempotent Operations**: Automatically cleans up existing payslips for processed employees
+- **Finalization Control**: Allows partial processing with finalization on the last batch
+
+**Section sources**
+- [payroll.py:79-95](file://app/schemas/payroll.py#L79-L95)
+- [payroll_service.py:334-369](file://app/services/payroll_service.py#L334-L369)
+
+## Enhanced Eligibility Validation
+The system implements sophisticated eligibility validation with join-date cutoff logic:
+
+### Eligibility Validation Logic
+```mermaid
+flowchart TD
+Start(["Employee Eligibility Check"]) --> Active{"Is Employee Active?"}
+Active --> |No| Reject["Reject - Inactive Employee"]
+Active --> |Yes| JoinDate["Get Join Date"]
+JoinDate --> Cutoff["Calculate Cutoff Date<br/>(15th of Period Month)"]
+Cutoff --> Compare{"Join Date <= Cutoff?"}
+Compare --> |No| Reject
+Compare --> |Yes| Approve["Approve - Eligible"]
+Reject --> End(["End"])
+Approve --> End
+```
+
+**Diagram sources**
+- [employee_loader.py:46-48](file://app/services/employee_loader.py#L46-L48)
+- [employee_loader.py:306-311](file://app/services/employee_loader.py#L306-L311)
+
+**Updated** Added join-date cutoff logic with 15th day threshold for payroll eligibility.
+
+**Section sources**
+- [employee_loader.py:46-48](file://app/services/employee_loader.py#L46-L48)
+- [employee_loader.py:306-311](file://app/services/employee_loader.py#L306-L311)
+
+### Preview Endpoints for Eligibility
+The system provides two new preview endpoints for eligibility validation:
+
+- **GET /preview/eligible-count**: Returns the count of eligible employees for a given period
+- **GET /preview/eligible-ids**: Returns IDs of eligible employees for batch processing
+- **Cutoff Logic**: Employees who joined on or before the 15th of the period month are eligible
+- **Pagination Support**: Both endpoints support standard pagination with increased limits
+
+**Section sources**
+- [payroll.py:36-83](file://app/routers/payroll.py#L36-L83)
+- [employee_loader.py:298-312](file://app/services/employee_loader.py#L298-L312)
+
+## Real-time Progress Tracking
+The system provides comprehensive real-time progress tracking for both batch processing and bulk generation:
+
+### Frontend Progress Monitoring
+```mermaid
+sequenceDiagram
+participant UI as "Payroll UI"
+participant API as "Progress API"
+participant Poller as "Progress Poller"
+UI->>API : GET /payroll/runs/{run_id}/process-batch
+API->>Poller : Start progress tracking
+loop Every 2 seconds
+Poller->>API : GET /payslip/job-status/{job_id}
+API->>Poller : Return progress data
+Poller->>UI : Update progress modal
+end
+UI->>API : GET /payroll/runs/{run_id}
+API->>UI : Final run status
+```
+
+**Diagram sources**
+- [page.tsx:160-213](file://frontend/src/app/(dashboard)/payroll/page.tsx#L160-L213)
+- [ProgressModal.tsx:28-49](file://frontend/src/components/payslip/ProgressModal.tsx#L28-L49)
+
+**Updated** Added real-time progress tracking with frontend polling and batch processing visualization.
+
+**Section sources**
+- [page.tsx:160-213](file://frontend/src/app/(dashboard)/payroll/page.tsx#L160-L213)
+- [ProgressModal.tsx:28-49](file://frontend/src/components/payslip/ProgressModal.tsx#L28-L49)
+
+### Progress Tracking Implementation
+The system implements comprehensive progress tracking through:
+
+- **Backend Progress Responses**: Real-time batch processing progress with processed_count and total_count
+- **Frontend Polling**: Automatic progress updates every 2 seconds for bulk generation jobs
+- **Visual Progress Bars**: Interactive progress bars with percentage completion
+- **Error Handling**: Graceful error handling with detailed error messages
+- **Completion Detection**: Automatic detection of job completion and ZIP file availability
+
+**Section sources**
+- [payroll_service.py:398-419](file://app/services/payroll_service.py#L398-L419)
+- [ProgressModal.tsx:28-49](file://frontend/src/components/payslip/ProgressModal.tsx#L28-L49)
 
 ## Automated Computation Engine
 The system features a comprehensive automated computation engine with pure calculation modules:
@@ -525,12 +716,17 @@ The system is optimized for performance through several key strategies:
 - **Database Indexing**: Strategic indexing on frequently queried columns
 - **Connection Pooling**: Optimized database connection management
 - **Decimal Precision**: Careful handling of monetary calculations with appropriate precision
+- **Chunked Processing**: Vercel timeout prevention through chunked batch processing
+- **Idempotent Operations**: Safe repeated processing without duplicate payslips
 
 ### Scalability Features
 - **Background Processing**: Non-blocking job execution for long-running operations
 - **Progress Monitoring**: Real-time progress tracking for large-scale operations
 - **Resource Management**: Controlled resource usage with worker limits
 - **Error Recovery**: Automatic retry mechanisms and comprehensive error handling
+- **Increased Limits**: Endpoint limits increased from 100 to 1000 employees per request
+
+**Updated** Added chunked processing, idempotent operations, and increased endpoint limits for better scalability.
 
 ## Troubleshooting Guide
 Common issues and their solutions:
@@ -550,27 +746,41 @@ Common issues and their solutions:
 - **Storage Space**: Ensure adequate disk space for PDF generation
 - **Template Errors**: Validate HTML/CSS template syntax and structure
 
+### Chunked Processing Issues
+- **Batch Size Limits**: Ensure batch sizes don't exceed system capabilities
+- **Finalization Problems**: Verify finalize flag is set correctly for the last batch
+- **Eligibility Validation**: Check join-date cutoff logic for employee eligibility
+
+**Updated** Added troubleshooting guidance for chunked processing and eligibility validation.
+
 **Section sources**
 - [database.py:56-63](file://app/database.py#L56-L63)
 - [env.py:41-73](file://alembic/env.py#L41-L73)
 - [seed_data.py:27-64](file://app/seed/seed_data.py#L27-L64)
 
 ## Conclusion
-The payroll processing system represents a comprehensive solution for Indonesian payroll management with automated computation, bulk generation capabilities, and robust workflow management. The system's architecture emphasizes modularity, scalability, and compliance with Indonesian labor and tax regulations. Through pure calculation modules, background job processing, and template-based PDF generation, it provides a complete solution for enterprise payroll processing with advanced features like real-time progress monitoring, comprehensive approval workflows, and detailed audit tracking.
+The payroll processing system represents a comprehensive solution for Indonesian payroll management with automated computation, bulk generation capabilities, and robust workflow management. The system's architecture emphasizes modularity, scalability, and compliance with Indonesian labor and tax regulations. Through pure calculation modules, background job processing, template-based PDF generation, and comprehensive real-time progress monitoring, it provides a complete solution for enterprise payroll processing with advanced features like chunked batch processing, enhanced eligibility validation, and detailed audit tracking.
+
+**Updated** Enhanced with comprehensive chunked payroll processing system, real-time progress tracking, and improved scalability features.
 
 ## Appendices
 
 ### Concrete Examples (Step-by-step)
 
-#### Create and Process Payroll Run
+#### Create and Process Payroll Run with Batch Processing
 1. **Create Payroll Run**: Initialize with period, method, and tax configuration
-2. **Process Batch**: Execute automated calculation for all employees
-3. **Validate Results**: Review computed totals and individual payslips
-4. **Approve Run**: Mark as approved and ready for payment processing
+2. **Preview Eligibility**: Use preview endpoints to check eligible employee count and IDs
+3. **Process in Batches**: Send employee IDs in chunks of 25 with finalize flag for the last batch
+4. **Monitor Progress**: Track real-time progress through frontend interface
+5. **Validate Results**: Review computed totals and individual payslips
+6. **Approve Run**: Mark as approved and ready for payment processing
+
+**Updated** Added batch processing workflow with eligibility preview and real-time monitoring.
 
 **Section sources**
 - [payroll_service.py:61-134](file://app/services/payroll_service.py#L61-L134)
 - [payroll_service.py:137-252](file://app/services/payroll_service.py#L137-L252)
+- [page.tsx:160-213](file://frontend/src/app/(dashboard)/payroll/page.tsx#L160-L213)
 
 #### Bulk Payslip Generation Workflow
 1. **Start Job**: Initiate bulk generation with payroll run reference
@@ -597,8 +807,12 @@ The payroll processing system represents a comprehensive solution for Indonesian
 - **Seed Data**: Load Indonesian regulatory defaults automatically
 - **Template Management**: Configure default and custom templates
 - **Background Workers**: Set up job processing infrastructure
+- **Endpoint Limits**: Configure increased limits for better scalability
+
+**Updated** Added configuration for increased endpoint limits and batch processing capabilities.
 
 **Section sources**
 - [database.py:17-63](file://app/database.py#L17-L63)
 - [seed_data.py:224-430](file://app/seed/seed_data.py#L224-L430)
 - [payslip_bulk_service.py:30-31](file://app/services/payslip_bulk_service.py#L30-L31)
+- [payroll.py:137-145](file://app/routers/payroll.py#L137-145)

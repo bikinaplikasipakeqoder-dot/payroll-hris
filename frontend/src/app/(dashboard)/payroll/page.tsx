@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Eye, Check, Play, AlertTriangle, RefreshCw, X, Loader2, Users } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { formatIDR, getMonthName } from '@/lib/utils';
+import { processPayrollInBatches } from '@/lib/payroll-batch';
 import Button from '@/components/ui/Button';
 
 interface PayrollRun {
@@ -157,59 +158,21 @@ export default function PayrollPage() {
     setProcessing(run.id);
     setProcessingRunId(run.id);
     setProcessError(null);
-    setProcessProgress({ current: 0, total: 0, message: 'Mempersiapkan...' });
 
-    try {
-      const [year, month] = run.payroll_period.split('-').map(Number);
-      const start = `${year}-${String(month).padStart(2, '0')}-01`;
-      const end = new Date(year, month, 0).toISOString().split('T')[0];
+    await processPayrollInBatches(run, {
+      onProgress: (progress) => setProcessProgress(progress),
+      onError: (msg) => {
+        setProcessError(msg);
+        alert(msg);
+      },
+      onComplete: async () => {
+        await fetchRuns();
+        setProcessingRunId(null);
+        router.push(`/payroll/${run.id}`);
+      },
+    });
 
-      // Fetch eligible employee IDs
-      const ids = await api.get<number[]>(
-        `/api/v1/payroll/preview/eligible-ids?company_id=${run.company_id}&period_start=${start}&period_end=${end}`
-      );
-
-      if (ids.length === 0) {
-        setProcessError('Tidak ada karyawan eligible untuk diproses.');
-        setProcessing(null);
-        return;
-      }
-
-      setProcessProgress({ current: 0, total: ids.length, message: `Memproses 0/${ids.length} karyawan...` });
-
-      const batchSize = 25;
-      for (let i = 0; i < ids.length; i += batchSize) {
-        const batch = ids.slice(i, i + batchSize);
-        const isLast = i + batchSize >= ids.length;
-
-        setProcessProgress({
-          current: i,
-          total: ids.length,
-          message: `Memproses ${i + 1}-${Math.min(i + batchSize, ids.length)} dari ${ids.length} karyawan...`,
-        });
-
-        await api.post(`/api/v1/payroll/runs/${run.id}/process-batch`, {
-          employee_ids: batch,
-          finalize: isLast,
-        });
-
-        setProcessProgress({
-          current: Math.min(i + batchSize, ids.length),
-          total: ids.length,
-          message: `Selesai ${Math.min(i + batchSize, ids.length)}/${ids.length} karyawan...`,
-        });
-      }
-
-      await fetchRuns();
-      setProcessingRunId(null);
-      router.push(`/payroll/${run.id}`);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Gagal memproses payroll.';
-      setProcessError(msg);
-      alert(msg);
-    } finally {
-      setProcessing(null);
-    }
+    setProcessing(null);
   };
 
   const filteredRuns = runs.filter((run) => {

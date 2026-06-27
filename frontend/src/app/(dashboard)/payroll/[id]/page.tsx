@@ -13,6 +13,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { formatIDR, getMonthName } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
+import { processPayrollInBatches } from '@/lib/payroll-batch';
 import Button from '@/components/ui/Button';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -90,6 +91,12 @@ export default function PayrollDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [processProgress, setProcessProgress] = useState({
+    current: 0,
+    total: 0,
+    message: '',
+  });
+  const [processError, setProcessError] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -119,15 +126,22 @@ export default function PayrollDetailPage() {
   }, [runId]);
 
   const handleProcess = async () => {
+    if (!run) return;
     setProcessing(true);
-    try {
-      await api.post(`/api/v1/payroll/runs/${runId}/process`, {});
-      fetchData();
-    } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Gagal memproses payroll.');
-    } finally {
-      setProcessing(false);
-    }
+    setProcessError(null);
+
+    await processPayrollInBatches(run, {
+      onProgress: (progress) => setProcessProgress(progress),
+      onError: (msg) => {
+        setProcessError(msg);
+        alert(msg);
+      },
+      onComplete: () => {
+        fetchData();
+      },
+    });
+
+    setProcessing(false);
   };
 
   const handleApprove = async () => {
@@ -284,6 +298,45 @@ export default function PayrollDetailPage() {
           </table>
         </div>
       </div>
+
+      {/* Batch Processing Progress Modal */}
+      {processing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-xl shadow-xl border border-gray-200 p-6 w-full max-w-md mx-4">
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Memproses Payroll</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Mohon tunggu, payroll diproses per batch agar tidak timeout.
+              </p>
+            </div>
+
+            <div className="mb-2 flex justify-between text-sm text-gray-600">
+              <span>{processProgress.message}</span>
+              <span>{processProgress.current}/{processProgress.total}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                style={{
+                  width: processProgress.total > 0
+                    ? `${Math.round((processProgress.current / processProgress.total) * 100)}%`
+                    : '0%',
+                }}
+              />
+            </div>
+
+            {processError && (
+              <div className="mt-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {processError}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
