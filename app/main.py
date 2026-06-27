@@ -22,6 +22,7 @@ from app.routers import (
     deductions_router,
     bonuses_router,
     reimbursements_router,
+    kasbon_router,
     thr_router,
     company_entities_router,
     rules_router,
@@ -61,6 +62,7 @@ app.include_router(allowances_router, prefix="/api/v1")
 app.include_router(deductions_router, prefix="/api/v1")
 app.include_router(bonuses_router, prefix="/api/v1")
 app.include_router(reimbursements_router, prefix="/api/v1")
+app.include_router(kasbon_router, prefix="/api/v1")
 app.include_router(thr_router, prefix="/api/v1")
 app.include_router(company_entities_router, prefix="/api/v1")
 app.include_router(rules_router, prefix="/api/v1")
