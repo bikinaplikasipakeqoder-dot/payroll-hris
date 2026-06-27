@@ -11,3 +11,4 @@ venv/
 frontend/node_modules/
 frontend/.next/
 frontend/tsconfig.tsbuildinfo
+.vercel
