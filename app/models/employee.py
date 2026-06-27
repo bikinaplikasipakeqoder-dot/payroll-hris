@@ -119,6 +119,7 @@ class Employee(Base, TimestampMixin):
     employment_status = relationship("EmploymentStatus", backref="employees")
     entity = relationship("Entity", backref="employees")
     employee_allowances = relationship("EmployeeAllowance", backref="employee", lazy="select")
+    salary_history = relationship("EmployeeSalaryHistory", backref="employee", lazy="select")
 
     __table_args__ = (
         CheckConstraint(

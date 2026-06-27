@@ -12,7 +12,11 @@ from app.models.company_entity import Entity, UmpSetting
 from app.models.employee import Department, Position, EmploymentStatus, Employee
 
 # Salary & Compensation
-from app.models.salary import Grade, GradeSalaryMatrix, AllowanceType, EmployeeAllowance, DeductionType
+from app.models.salary import (
+    Grade, GradeSalaryMatrix, AllowanceType, EmployeeAllowance, DeductionType,
+    AllowanceGradeMatrix, AllowancePositionMatrix, AllowanceDepartmentMatrix,
+    EmployeeSalaryHistory,
+)
 
 # Tax
 from app.models.tax import TaxSetting, PtkpValue, TaxBracketPasal17, TerBracket
@@ -52,6 +56,8 @@ __all__ = [
     "Department", "Position", "EmploymentStatus", "Employee",
     # Salary & Compensation
     "Grade", "GradeSalaryMatrix", "AllowanceType", "EmployeeAllowance", "DeductionType",
+    "AllowanceGradeMatrix", "AllowancePositionMatrix", "AllowanceDepartmentMatrix",
+    "EmployeeSalaryHistory",
     # Tax
     "TaxSetting", "PtkpValue", "TaxBracketPasal17", "TerBracket",
     # BPJS

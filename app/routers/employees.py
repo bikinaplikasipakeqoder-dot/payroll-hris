@@ -3,6 +3,7 @@ Employee CRUD API endpoints.
 """
 
 from typing import List, Optional
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -13,13 +14,16 @@ from app.database import get_db
 from app.models.company_entity import Entity, UmpSetting
 from app.models.employee import Employee
 from app.models.payroll import Payslip
-from app.models.salary import AllowanceType, EmployeeAllowance
+from app.models.salary import AllowanceType, EmployeeAllowance, EmployeeSalaryHistory
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
 from app.schemas.payroll import PayslipResponse
 from app.schemas.salary import (
     EmployeeAllowanceCreate,
     EmployeeAllowanceResponse,
     EmployeeAllowanceUpdate,
+    EmployeeSalaryHistoryCreate,
+    EmployeeSalaryHistoryResponse,
+    EmployeeSalaryHistoryUpdate,
 )
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
@@ -45,6 +49,87 @@ def _get_ump_amount(db: Session, company_id: int, province: Optional[str], city:
         return province_match.amount
 
     return None
+
+
+def _get_latest_base_salary(
+    db: Session,
+    employee_id: int,
+    as_of_date: Optional[date] = None,
+) -> Optional[EmployeeSalaryHistory]:
+    """Return the most recent active base salary record for an employee as of a date."""
+    query = db.query(EmployeeSalaryHistory).filter(
+        EmployeeSalaryHistory.employee_id == employee_id,
+        EmployeeSalaryHistory.is_active == True,
+    )
+    if as_of_date:
+        query = query.filter(EmployeeSalaryHistory.effective_date <= as_of_date)
+        query = query.filter(
+            (EmployeeSalaryHistory.end_date.is_(None)) | (EmployeeSalaryHistory.end_date >= as_of_date)
+        )
+    return query.order_by(EmployeeSalaryHistory.effective_date.desc()).first()
+
+
+def _attach_current_base_salary(employee: Employee, db: Session) -> None:
+    """Attach current base salary and effective date from history to employee object."""
+    record = _get_latest_base_salary(db, employee.id)
+    employee.base_salary = record.base_salary if record else None
+    employee.base_salary_effective_date = record.effective_date if record else None
+
+
+def _set_base_salary(
+    db: Session,
+    employee_id: int,
+    base_salary: Decimal,
+    effective_date: Optional[date] = None,
+    notes: Optional[str] = None,
+) -> None:
+    """Create a new salary history record and close the previous active record."""
+    effective = effective_date or date.today()
+
+    # Close the currently active record if its effective_date is before the new one
+    active_record = (
+        db.query(EmployeeSalaryHistory)
+        .filter(
+            EmployeeSalaryHistory.employee_id == employee_id,
+            EmployeeSalaryHistory.is_active == True,
+            EmployeeSalaryHistory.effective_date < effective,
+            EmployeeSalaryHistory.end_date.is_(None),
+        )
+        .order_by(EmployeeSalaryHistory.effective_date.desc())
+        .first()
+    )
+    if active_record:
+        # Set end_date to one day before the new effective date
+        active_record.end_date = effective - timedelta(days=1)
+
+    # If a record already exists with the same effective_date, update it
+    same_date_record = (
+        db.query(EmployeeSalaryHistory)
+        .filter(
+            EmployeeSalaryHistory.employee_id == employee_id,
+            EmployeeSalaryHistory.effective_date == effective,
+        )
+        .first()
+    )
+    if same_date_record:
+        same_date_record.base_salary = base_salary
+        same_date_record.notes = notes or same_date_record.notes
+        same_date_record.is_active = True
+        same_date_record.end_date = None
+    else:
+        new_record = EmployeeSalaryHistory(
+            employee_id=employee_id,
+            base_salary=base_salary,
+            effective_date=effective,
+            notes=notes,
+            is_active=True,
+        )
+        db.add(new_record)
+
+    # Sync the employee cache column to the latest active salary
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if employee:
+        employee.base_salary = base_salary
 
 
 def _validate_ump(
@@ -99,6 +184,8 @@ def list_employees(
         query = query.filter(Employee.is_active == is_active)
 
     employees = query.offset(skip).limit(limit).all()
+    for emp in employees:
+        _attach_current_base_salary(emp, db)
     return employees
 
 
@@ -172,6 +259,20 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
     db.add(employee)
     db.commit()
     db.refresh(employee)
+
+    # Store base salary as a history record
+    if payload.base_salary is not None:
+        _set_base_salary(
+            db,
+            employee.id,
+            payload.base_salary,
+            effective_date=payload.base_salary_effective_date or payload.date_joined,
+            notes="Gaji pokok awal",
+        )
+        db.commit()
+        db.refresh(employee)
+
+    _attach_current_base_salary(employee, db)
     return employee
 
 
@@ -188,6 +289,7 @@ def get_employee(employee_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "NotFound", "message": f"Employee {employee_id} not found"},
         )
+    _attach_current_base_salary(employee, db)
     return employee
 
 
@@ -219,9 +321,33 @@ def update_employee(
         "bpjs_tk_number": "bpjs_ketenagakerjaan_number",
     }
 
+    salary_changed = "base_salary" in update_data
+    salary_effective_date = update_data.get("base_salary_effective_date")
+
     for field, value in update_data.items():
         model_field = field_mapping.get(field, field)
+        # Do not overwrite direct employee.base_salary; it is maintained via history
+        if model_field == "base_salary":
+            continue
         setattr(employee, model_field, value)
+
+    # Validate and store new base salary via history
+    if salary_changed:
+        new_salary = update_data["base_salary"]
+        _validate_ump(db, employee.company_id, employee.entity_id, new_salary)
+        if new_salary is not None:
+            _set_base_salary(
+                db,
+                employee.id,
+                new_salary,
+                effective_date=salary_effective_date or date.today(),
+                notes="Perubahan gaji pokok",
+            )
+
+    # Pull current base salary from history for UMP validation when salary didn't change
+    if not salary_changed:
+        current_record = _get_latest_base_salary(db, employee.id)
+        employee.base_salary = current_record.base_salary if current_record else None
 
     # Validate base salary against UMP after applying updates
     _validate_ump(db, employee.company_id, employee.entity_id, employee.base_salary)
@@ -234,6 +360,7 @@ def update_employee(
 
     db.commit()
     db.refresh(employee)
+    _attach_current_base_salary(employee, db)
     return employee
 
 

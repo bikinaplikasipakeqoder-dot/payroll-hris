@@ -203,3 +203,36 @@ class DeductionType(Base, TimestampMixin):
         ),
         UniqueConstraint("company_id", "code", name="uq_deduction_types_company_code"),
     )
+
+
+class EmployeeSalaryHistory(Base, TimestampMixin):
+    """Historical base salary records per employee with effective dates.
+
+    Implements the Effective Date pattern: do not mutate old salary records.
+    When a salary changes, create a new record with effective_date = start date.
+    Payroll calculation selects the most recent record where effective_date <= period end.
+    """
+
+    __tablename__ = "employee_salary_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    base_salary = Column(Numeric(15, 2), nullable=False)
+    effective_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    __table_args__ = (
+        CheckConstraint("base_salary >= 0", name="ck_employee_salary_history_amount"),
+        CheckConstraint(
+            "end_date IS NULL OR end_date >= effective_date",
+            name="ck_employee_salary_history_dates",
+        ),
+        UniqueConstraint(
+            "employee_id", "effective_date",
+            name="uq_employee_salary_history_emp_date",
+        ),
+        Index("idx_employee_salary_history_employee", "employee_id"),
+        Index("idx_employee_salary_history_effective", "employee_id", "effective_date"),
+    )

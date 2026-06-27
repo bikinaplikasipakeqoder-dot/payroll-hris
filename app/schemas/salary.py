@@ -170,3 +170,37 @@ class DeductionTypeResponse(BaseSchema):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+
+class EmployeeSalaryHistoryCreate(BaseSchema):
+    """Request schema for creating an employee base salary history record."""
+
+    base_salary: Decimal
+    effective_date: date
+    end_date: Optional[date] = None
+    notes: Optional[str] = None
+    is_active: bool = True
+
+
+class EmployeeSalaryHistoryUpdate(BaseSchema):
+    """Request schema for updating an employee base salary history record."""
+
+    base_salary: Optional[Decimal] = None
+    effective_date: Optional[date] = None
+    end_date: Optional[date] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class EmployeeSalaryHistoryResponse(BaseSchema):
+    """Response schema for employee base salary history records."""
+
+    id: int
+    employee_id: int
+    base_salary: Decimal
+    effective_date: date
+    end_date: Optional[date] = None
+    notes: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None

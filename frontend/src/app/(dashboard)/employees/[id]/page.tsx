@@ -77,6 +77,7 @@ export default function EditEmployeePage() {
     ptkp_status: emp.ptkp_status as EmployeeFormData['ptkp_status'],
     religion: (emp.religion as EmployeeFormData['religion']) || 'Islam',
     base_salary: emp.base_salary,
+    base_salary_effective_date: emp.base_salary_effective_date || '',
     npwp_number: emp.npwp || '',
     bpjs_kes_number: emp.bpjs_kesehatan_number || '',
     bpjs_tk_number: emp.bpjs_ketenagakerjaan_number || '',

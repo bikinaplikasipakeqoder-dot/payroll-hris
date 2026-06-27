@@ -35,6 +35,7 @@ class EmployeeCreate(BaseSchema):
     employment_status_id: Optional[int] = None
     entity_id: Optional[int] = None
     base_salary: Optional[Decimal] = None
+    base_salary_effective_date: Optional[date] = None
     bank_name: Optional[str] = Field(None, max_length=100)
     bank_account_number: Optional[str] = Field(None, max_length=50)
     bank_account_name: Optional[str] = Field(None, max_length=255)
@@ -70,6 +71,7 @@ class EmployeeUpdate(BaseSchema):
     employment_status_id: Optional[int] = None
     entity_id: Optional[int] = None
     base_salary: Optional[Decimal] = None
+    base_salary_effective_date: Optional[date] = None
     bank_name: Optional[str] = Field(None, max_length=100)
     bank_account_number: Optional[str] = Field(None, max_length=50)
     bank_account_name: Optional[str] = Field(None, max_length=255)
@@ -116,6 +118,7 @@ class EmployeeResponse(BaseSchema):
     bank_account_number: Optional[str] = None
     bank_account_holder_name: Optional[str] = None
     base_salary: Optional[Decimal] = None
+    base_salary_effective_date: Optional[date] = None
     bpjs_kesehatan_number: Optional[str] = None
     bpjs_ketenagakerjaan_number: Optional[str] = None
     is_active: bool

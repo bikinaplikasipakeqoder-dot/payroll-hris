@@ -105,6 +105,7 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
       ptkp_status: 'TK/0',
       religion: 'Islam',
       base_salary: null,
+      base_salary_effective_date: '',
       npwp_number: '',
       bpjs_kes_number: '',
       bpjs_tk_number: '',
@@ -346,6 +347,12 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
               {...register('base_salary', { valueAsNumber: true })}
               error={errors.base_salary?.message}
               placeholder="0"
+            />
+            <Input
+              label="Tanggal Efektif Gaji"
+              type="date"
+              {...register('base_salary_effective_date')}
+              error={errors.base_salary_effective_date?.message}
             />
             <Input
               label="No. NPWP"

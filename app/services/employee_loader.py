@@ -15,6 +15,7 @@ from app.models.salary import (
     AllowanceGradeMatrix,
     AllowancePositionMatrix,
     AllowanceDepartmentMatrix,
+    EmployeeSalaryHistory,
 )
 from app.models.bonus import Bonus, Reimbursement
 from app.models.kasbon import KasbonInstallment, KasbonRequest
@@ -60,6 +61,7 @@ class EmployeeLoader:
             selectinload(Employee.employee_allowances).selectinload(
                 EmployeeAllowance.allowance_type
             ),
+            selectinload(Employee.salary_history),
         ).all()
 
         if not employees:
@@ -173,6 +175,19 @@ class EmployeeLoader:
                 return None
             return max(valid, key=lambda r: r.effective_date)
 
+        def _pick_base_salary(history_rows, period_end: date):
+            valid = [
+                r for r in history_rows
+                if r.is_active and r.effective_date <= period_end and (r.end_date is None or r.end_date >= period_end)
+            ]
+            if not valid:
+                # Fallback to the most recent record before period_end
+                past = [r for r in history_rows if r.is_active and r.effective_date <= period_end]
+                if past:
+                    return max(past, key=lambda r: r.effective_date).base_salary
+                return Decimal("0")
+            return max(valid, key=lambda r: r.effective_date).base_salary
+
         # Build EmployeePayrollData list
         result = []
         for emp in employees:
@@ -238,7 +253,7 @@ class EmployeeLoader:
                 first_name=emp.first_name,
                 last_name=emp.last_name or "",
                 ptkp_status=emp.ptkp_status,
-                base_salary=to_decimal(emp.base_salary),
+                base_salary=to_decimal(_pick_base_salary(emp.salary_history, period_end)),
                 allowances=allowances,
                 approved_bonuses=bonus_by_emp.get(emp.id, Decimal("0")),
                 kasbon_due=kasbon_by_emp.get(emp.id, Decimal("0")),

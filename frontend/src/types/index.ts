@@ -28,6 +28,7 @@ export interface Employee {
   bank_account_number: string | null;
   bank_account_holder_name: string | null;
   base_salary: number | null;
+  base_salary_effective_date: string | null;
   bpjs_kesehatan_number: string | null;
   bpjs_ketenagakerjaan_number: string | null;
   is_active: boolean;
@@ -53,6 +54,7 @@ export interface EmployeeCreate {
   employment_status_id?: number | null;
   entity_id?: number | null;
   base_salary?: number | null;
+  base_salary_effective_date?: string | null;
   bank_name?: string | null;
   bank_account_number?: string | null;
   bank_account_name?: string | null;

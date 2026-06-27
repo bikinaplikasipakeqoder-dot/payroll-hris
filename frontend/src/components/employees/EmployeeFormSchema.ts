@@ -23,6 +23,7 @@ export const employeeFormSchema = z.object({
 
   // Tab 3: Salary & Tax
   base_salary: z.number().positive('Gaji harus lebih dari 0').optional().nullable(),
+  base_salary_effective_date: z.string().optional().or(z.literal('')),
   npwp_number: z.string().max(50).optional().or(z.literal('')),
 
   // Tab 4: BPJS & Bank
