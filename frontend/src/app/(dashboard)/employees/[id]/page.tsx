@@ -4,6 +4,22 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { Employee } from '@/types';
+
+interface SalaryHistoryRecord {
+  id: number;
+  employee_id: number;
+  base_salary: number;
+  effective_date: string;
+  end_date: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_by: number | null;
+  updated_by: number | null;
+  created_by_name: string | null;
+  updated_by_name: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import EmployeeForm from '@/components/employees/EmployeeForm';
@@ -19,14 +35,20 @@ export default function EditEmployeePage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [salaryHistory, setSalaryHistory] = useState<SalaryHistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
     const fetchEmployee = async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await api.get<Employee>(`/api/v1/employees/${id}`);
+        const [data, history] = await Promise.all([
+          api.get<Employee>(`/api/v1/employees/${id}`),
+          api.get<SalaryHistoryRecord[]>(`/api/v1/employees/${id}/salary-history`),
+        ]);
         setEmployee(data);
+        setSalaryHistory(history);
       } catch (err) {
         if (err instanceof ApiError) {
           setError(err.message);
@@ -35,6 +57,7 @@ export default function EditEmployeePage() {
         }
       } finally {
         setLoading(false);
+        setHistoryLoading(false);
       }
     };
 
@@ -129,6 +152,54 @@ export default function EditEmployeePage() {
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
         />
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Audit Trail Gaji Pokok</h2>
+        {historyLoading ? (
+          <div className="text-sm text-gray-500">Memuat riwayat gaji...</div>
+        ) : salaryHistory.length === 0 ? (
+          <div className="text-sm text-gray-500">Belum ada riwayat gaji.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left">
+              <thead className="bg-gray-50 text-gray-700 font-medium">
+                <tr>
+                  <th className="px-4 py-2">Efektif</th>
+                  <th className="px-4 py-2">Sampai</th>
+                  <th className="px-4 py-2">Gaji Pokok</th>
+                  <th className="px-4 py-2">Dibuat Oleh</th>
+                  <th className="px-4 py-2">Waktu Dibuat</th>
+                  <th className="px-4 py-2">Diubah Oleh</th>
+                  <th className="px-4 py-2">Waktu Diubah</th>
+                  <th className="px-4 py-2">Catatan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {salaryHistory.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-2">{row.effective_date}</td>
+                    <td className="px-4 py-2">{row.end_date || '-'}</td>
+                    <td className="px-4 py-2">
+                      Rp {row.base_salary.toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-2">{row.created_by_name || row.created_by || '-'}</td>
+                    <td className="px-4 py-2">
+                      {new Date(row.created_at).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-2">{row.updated_by_name || row.updated_by || '-'}</td>
+                    <td className="px-4 py-2">
+                      {row.updated_at
+                        ? new Date(row.updated_at).toLocaleString('id-ID')
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-2">{row.notes || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </div>
   );

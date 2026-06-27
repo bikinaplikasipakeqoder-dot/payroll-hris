@@ -211,6 +211,9 @@ class EmployeeSalaryHistory(Base, TimestampMixin):
     Implements the Effective Date pattern: do not mutate old salary records.
     When a salary changes, create a new record with effective_date = start date.
     Payroll calculation selects the most recent record where effective_date <= period end.
+
+    Audit fields (created_by, updated_by) record who made salary changes for
+    financial and tax audit compliance.
     """
 
     __tablename__ = "employee_salary_history"
@@ -222,6 +225,12 @@ class EmployeeSalaryHistory(Base, TimestampMixin):
     end_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    creator = relationship("User", foreign_keys=[created_by], lazy="select")
+    updater = relationship("User", foreign_keys=[updated_by], lazy="select")
 
     __table_args__ = (
         CheckConstraint("base_salary >= 0", name="ck_employee_salary_history_amount"),

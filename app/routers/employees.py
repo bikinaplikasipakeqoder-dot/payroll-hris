@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from decimal import Decimal
 
 from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.auth import User
 from app.models.company_entity import Entity, UmpSetting
 from app.models.employee import Employee
 from app.models.payroll import Payslip
@@ -82,6 +84,7 @@ def _set_base_salary(
     base_salary: Decimal,
     effective_date: Optional[date] = None,
     notes: Optional[str] = None,
+    user_id: Optional[int] = None,
 ) -> None:
     """Create a new salary history record and close the previous active record."""
     effective = effective_date or date.today()
@@ -116,6 +119,7 @@ def _set_base_salary(
         same_date_record.notes = notes or same_date_record.notes
         same_date_record.is_active = True
         same_date_record.end_date = None
+        same_date_record.updated_by = user_id
     else:
         new_record = EmployeeSalaryHistory(
             employee_id=employee_id,
@@ -123,6 +127,8 @@ def _set_base_salary(
             effective_date=effective,
             notes=notes,
             is_active=True,
+            created_by=user_id,
+            updated_by=user_id,
         )
         db.add(new_record)
 
@@ -195,7 +201,11 @@ def list_employees(
     status_code=status.HTTP_201_CREATED,
     summary="Create a new employee",
 )
-def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+def create_employee(
+    payload: EmployeeCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Create a new employee record. Employee code must be unique per company."""
     # Check unique employee_code within company
     existing = (
@@ -268,6 +278,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
             payload.base_salary,
             effective_date=payload.base_salary_effective_date or payload.date_joined,
             notes="Gaji pokok awal",
+            user_id=current_user.get("user_id"),
         )
         db.commit()
         db.refresh(employee)
@@ -302,6 +313,7 @@ def update_employee(
     employee_id: int,
     payload: EmployeeUpdate,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Partially update an employee — only provided fields are applied."""
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -342,6 +354,7 @@ def update_employee(
                 new_salary,
                 effective_date=salary_effective_date or date.today(),
                 notes="Perubahan gaji pokok",
+                user_id=current_user.get("user_id"),
             )
 
     # Pull current base salary from history for UMP validation when salary didn't change
@@ -598,6 +611,43 @@ def delete_employee_allowance(
     db.delete(allowance)
     db.commit()
     return {"message": "Employee allowance deleted"}
+
+
+# ─── Employee Salary History & Audit Trail ───────────────────────────────────
+
+
+@router.get(
+    "/{employee_id}/salary-history",
+    response_model=List[EmployeeSalaryHistoryResponse],
+    summary="List employee base salary history with audit trail",
+)
+def list_employee_salary_history(
+    employee_id: int,
+    db: Session = Depends(get_db),
+):
+    """List all base salary history records for an employee, including audit info."""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NotFound", "message": f"Employee {employee_id} not found"},
+        )
+
+    history = (
+        db.query(EmployeeSalaryHistory)
+        .filter(EmployeeSalaryHistory.employee_id == employee_id)
+        .order_by(EmployeeSalaryHistory.effective_date.desc())
+        .all()
+    )
+
+    return [
+        {
+            **record.__dict__,
+            "created_by_name": record.creator.full_name if record.creator else None,
+            "updated_by_name": record.updater.full_name if record.updater else None,
+        }
+        for record in history
+    ]
 
 
 # ─── Employee Self-Service ───────────────────────────────────────────────────

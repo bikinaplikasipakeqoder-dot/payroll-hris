@@ -202,5 +202,9 @@ class EmployeeSalaryHistoryResponse(BaseSchema):
     end_date: Optional[date] = None
     notes: Optional[str] = None
     is_active: bool
+    created_by: Optional[int] = None
+    updated_by: Optional[int] = None
+    created_by_name: Optional[str] = None
+    updated_by_name: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
