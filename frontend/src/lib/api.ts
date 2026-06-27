@@ -11,12 +11,28 @@ export class ApiError extends Error {
   }
 }
 
+function extractErrorMessage(data: any, status: number): string {
+  if (typeof data?.detail === 'string') return data.detail;
+  if (typeof data?.detail?.message === 'string') return data.detail.message;
+  if (Array.isArray(data?.detail) && data.detail.length > 0) {
+    const first = data.detail[0];
+    if (typeof first?.msg === 'string') return first.msg;
+    if (typeof first?.message === 'string') return first.message;
+    return JSON.stringify(data.detail);
+  }
+  if (typeof data?.message === 'string') return data.message;
+  if (data && typeof data === 'object') {
+    return data.error || data.message || JSON.stringify(data);
+  }
+  return `Request failed with status ${status}`;
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     throw new ApiError(
       response.status,
-      data?.detail?.message || data?.detail || `Request failed with status ${response.status}`,
+      extractErrorMessage(data, response.status),
       data
     );
   }

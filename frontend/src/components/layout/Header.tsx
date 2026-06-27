@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import { getUser } from '@/lib/auth';
+import { API_BASE } from '@/lib/api';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 
 interface HeaderProps {
@@ -19,7 +20,7 @@ export default function Header({ title }: HeaderProps) {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/notifications/unread-count?employee_id=1`);
+        const res = await fetch(`${API_BASE}/api/v1/notifications/unread-count?employee_id=1`);
         if (res.ok) {
           const data = await res.json();
           setUnreadCount(data.count);

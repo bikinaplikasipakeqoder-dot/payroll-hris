@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
+import { API_BASE } from '@/lib/api';
+
 interface Notification {
   id: number;
   employee_id: number;
-  type: string;
+  notification_type: string;
   title: string;
   message: string;
   link: string | null;
@@ -55,7 +57,7 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
     const fetchNotifications = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/notifications?employee_id=1&unread_only=false`
+          `${API_BASE}/api/v1/notifications?employee_id=1&unread_only=false`
         );
         if (res.ok) {
           const data = await res.json();
@@ -73,7 +75,7 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
   const markAsRead = async (id: number) => {
     try {
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/notifications/${id}/read`,
+        `${API_BASE}/api/v1/notifications/${id}/read`,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' } }
       );
       setNotifications((prev) =>
@@ -85,7 +87,7 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
   const markAllAsRead = async () => {
     try {
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/notifications/mark-all-read?employee_id=1`,
+        `${API_BASE}/api/v1/notifications/mark-all-read?employee_id=1`,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' } }
       );
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
@@ -134,7 +136,7 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
                   !notification.is_read ? 'bg-blue-50/50' : ''
                 }`}
               >
-                {getNotificationIcon(notification.type)}
+                {getNotificationIcon(notification.notification_type)}
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm ${!notification.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
                     {notification.title}
