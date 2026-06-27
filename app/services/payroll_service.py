@@ -11,6 +11,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.payroll import PayrollRun, Payslip
+from app.models.employee import Employee
 from app.models.tax import TaxSetting
 from app.exceptions import (
     PayrollRunError,
@@ -257,6 +258,165 @@ class PayrollService:
             session.flush()
             logger.error(f"Payroll run #{payroll_run_id} failed: {str(e)}")
             raise
+
+    @staticmethod
+    def process_payroll_batch(
+        payroll_run_id: int,
+        employee_ids: List[int],
+        finalize: bool,
+        session: Session,
+    ) -> dict:
+        """Process a batch of employees for a payroll run.
+
+        This supports chunked frontend processing to stay within Vercel's
+        10-second serverless function limit. Each call is idempotent for the
+        given employee_ids (existing payslips for those IDs are replaced).
+
+        Flow:
+        1. Load payroll run; on first call (DRAFT) set status=PROCESSING
+        2. Delete existing payslips for the requested employee_ids
+        3. Load requested employees and their attendance
+        4. Calculate payslips for each employee
+        5. Insert payslips
+        6. If finalize=True: compute totals from all payslips and set COMPLETED
+        """
+        from app.models.payroll import Payslip
+
+        payroll_run = session.query(PayrollRun).filter(
+            PayrollRun.id == payroll_run_id
+        ).first()
+        if not payroll_run:
+            raise PayrollRunError(
+                f"Payroll run not found: {payroll_run_id}",
+                {"payroll_run_id": payroll_run_id},
+            )
+
+        if payroll_run.status == "DRAFT":
+            validate_payroll_run_processing(payroll_run, session)
+            payroll_run.status = "PROCESSING"
+            session.flush()
+        elif payroll_run.status != "PROCESSING":
+            raise PayrollValidationError(
+                f"Payroll run must be in DRAFT or PROCESSING status to process batch. Current: {payroll_run.status}",
+                {"payroll_run_id": payroll_run_id, "current_status": payroll_run.status},
+            )
+
+        if not employee_ids:
+            if finalize and payroll_run.status == "PROCESSING":
+                PayrollService._finalize_payroll_run(payroll_run, session)
+            return PayrollService._build_progress_response(payroll_run, session, 0)
+
+        # Load config once per batch
+        config = ConfigLoader.load(
+            company_id=payroll_run.company_id,
+            period_date=payroll_run.period_start_date,
+            session=session,
+        )
+
+        # Load only requested employees
+        employees = EmployeeLoader.load_by_ids(
+            company_id=payroll_run.company_id,
+            employee_ids=employee_ids,
+            period_start=payroll_run.period_start_date,
+            period_end=payroll_run.period_end_date,
+            session=session,
+        )
+
+        # Load attendance for the requested employees
+        attendance_map = AttendanceLoader.load_period(
+            company_id=payroll_run.company_id,
+            employee_ids=employee_ids,
+            period_start=payroll_run.period_start_date,
+            period_end=payroll_run.period_end_date,
+            session=session,
+        )
+
+        # Delete existing payslips for these employees to keep batches idempotent
+        session.query(Payslip).filter(
+            Payslip.payroll_run_id == payroll_run_id,
+            Payslip.employee_id.in_(employee_ids),
+        ).delete(synchronize_session=False)
+
+        # Process each employee
+        payslips: List[Payslip] = []
+        for emp in employees:
+            warnings = validate_employee_for_payroll(emp)
+            if warnings:
+                for w in warnings:
+                    logger.warning(w)
+                if not emp.ptkp_status or emp.base_salary <= Decimal("0"):
+                    logger.warning(
+                        f"Skipping employee {emp.employee_code} due to validation issues"
+                    )
+                    continue
+
+            payslip = PayrollService._process_single_employee(
+                emp=emp,
+                payroll_run=payroll_run,
+                config=config,
+                attendance_map=attendance_map,
+            )
+            payslips.append(payslip)
+
+        session.add_all(payslips)
+        session.flush()
+
+        if finalize:
+            PayrollService._finalize_payroll_run(payroll_run, session)
+
+        return PayrollService._build_progress_response(
+            payroll_run, session, len(payslips)
+        )
+
+    @staticmethod
+    def _finalize_payroll_run(payroll_run: PayrollRun, session: Session) -> None:
+        """Compute totals from all payslips and mark run as COMPLETED."""
+        from app.models.payroll import Payslip
+
+        row = session.query(
+            session.func.count(Payslip.id).label("count"),
+            session.func.coalesce(session.func.sum(Payslip.gross_salary), Decimal("0")).label("gross"),
+            session.func.coalesce(session.func.sum(Payslip.total_deductions), Decimal("0")).label("deductions"),
+            session.func.coalesce(session.func.sum(Payslip.pph21_tax), Decimal("0")).label("tax"),
+            session.func.coalesce(session.func.sum(Payslip.net_salary), Decimal("0")).label("net"),
+        ).filter(Payslip.payroll_run_id == payroll_run.id).first()
+
+        payroll_run.total_employees = int(row.count) if row else 0
+        payroll_run.total_gross = row.gross if row else Decimal("0")
+        payroll_run.total_deductions = row.deductions if row else Decimal("0")
+        payroll_run.total_tax = row.tax if row else Decimal("0")
+        payroll_run.total_net = row.net if row else Decimal("0")
+        payroll_run.status = "COMPLETED"
+        session.flush()
+
+        logger.info(
+            f"Payroll run #{payroll_run.id} finalized: "
+            f"{payroll_run.total_employees} employees, total_net={payroll_run.total_net}"
+        )
+
+    @staticmethod
+    def _build_progress_response(
+        payroll_run: PayrollRun, session: Session, batch_size: int
+    ) -> dict:
+        """Build progress response for batch processing."""
+        from app.models.payroll import Payslip
+
+        processed_count = session.query(Payslip).filter(
+            Payslip.payroll_run_id == payroll_run.id
+        ).count()
+        total_count = session.query(Employee).filter(
+            Employee.company_id == payroll_run.company_id,
+            Employee.is_active == True,
+        ).count()
+
+        return {
+            "payroll_run_id": payroll_run.id,
+            "status": payroll_run.status,
+            "processed_count": processed_count,
+            "total_count": total_count,
+            "batch_size": batch_size,
+            "finalized": payroll_run.status == "COMPLETED",
+        }
 
     @staticmethod
     def _process_single_employee(

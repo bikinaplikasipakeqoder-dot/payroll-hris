@@ -76,6 +76,24 @@ class PayrollRunListResponse(PaginatedResponse[PayrollRunResponse]):
 # --- Payslip Schemas ---
 
 
+class BatchProcessRequest(BaseSchema):
+    """Request schema for processing a batch of employees in a payroll run."""
+
+    employee_ids: List[int] = Field(..., description="Employee IDs to process in this batch")
+    finalize: bool = Field(False, description="If true, finalize the run after this batch")
+
+
+class BatchProcessResponse(BaseSchema):
+    """Response schema for batch payroll processing progress."""
+
+    payroll_run_id: int
+    status: str
+    processed_count: int
+    total_count: int
+    batch_size: int
+    finalized: bool
+
+
 class PayslipLineResponse(BaseSchema):
     """Response schema for a payslip line item."""
 

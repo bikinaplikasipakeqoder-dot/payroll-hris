@@ -18,7 +18,10 @@ from app.exceptions import (
     PayrollValidationError,
 )
 from app.models.payroll import PayrollRun, Payslip
+from app.models.employee import Employee
 from app.schemas.payroll import (
+    BatchProcessRequest,
+    BatchProcessResponse,
     PayrollRunCreate,
     PayrollRunResponse,
     PayslipDetailResponse,
@@ -48,6 +51,27 @@ def preview_eligible_count(
         period_end=period_end,
         session=db,
     )
+
+
+@router.get(
+    "/preview/eligible-ids",
+    response_model=List[int],
+    summary="Preview eligible employee IDs for a period",
+)
+def preview_eligible_ids(
+    company_id: int = Query(..., description="Company ID"),
+    period_start: date = Query(..., description="Period start date"),
+    period_end: date = Query(..., description="Period end date"),
+    db: Session = Depends(get_db),
+):
+    """Return IDs of active employees eligible for payroll in the period."""
+    cutoff = EmployeeLoader._cutoff_date(period_start)
+    employees = db.query(Employee).filter(
+        Employee.company_id == company_id,
+        Employee.is_active == True,
+        Employee.date_joined <= cutoff,
+    ).order_by(Employee.id).all()
+    return [e.id for e in employees]
 
 
 class ApprovalRequest(BaseModel):
@@ -151,6 +175,46 @@ def process_payroll_run(run_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(payroll_run)
         return payroll_run
+    except PayrollValidationError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "PayrollValidation", "message": e.message, "detail": e.detail},
+        )
+    except PayrollRunError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "PayrollRunError", "message": e.message, "detail": e.detail},
+        )
+    except PayrollError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "PayrollError", "message": e.message, "detail": e.detail},
+        )
+
+
+@router.post(
+    "/runs/{run_id}/process-batch",
+    response_model=BatchProcessResponse,
+    summary="Process a batch of employees for a payroll run",
+)
+def process_payroll_batch(
+    run_id: int,
+    body: BatchProcessRequest,
+    db: Session = Depends(get_db),
+):
+    """Process a subset of employees in chunks to avoid Vercel 10s timeout."""
+    try:
+        progress = PayrollService.process_payroll_batch(
+            payroll_run_id=run_id,
+            employee_ids=body.employee_ids,
+            finalize=body.finalize,
+            session=db,
+        )
+        db.commit()
+        return progress
     except PayrollValidationError as e:
         db.rollback()
         raise HTTPException(

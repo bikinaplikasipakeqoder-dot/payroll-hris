@@ -4,7 +4,7 @@ Uses SQLAlchemy eager loading to avoid N+1 queries.
 """
 from decimal import Decimal
 from datetime import date
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass, field
 from sqlalchemy.orm import Session, selectinload
 
@@ -53,19 +53,24 @@ class EmployeeLoader:
         period_start: date,
         period_end: date,
         session: Session,
+        employee_ids: Optional[List[int]] = None,
     ) -> List[EmployeePayrollData]:
         """Load all active employees with allowances, bonuses, and kasbon.
 
         Uses eager loading to minimize database queries.
         Only employees whose date_joined <= 15th of the period month are included.
+        If employee_ids is provided, only those IDs are loaded (for batch processing).
         """
         cutoff = EmployeeLoader._cutoff_date(period_start)
-        # Query active employees with eager-loaded allowances
-        employees = session.query(Employee).filter(
+        query = session.query(Employee).filter(
             Employee.company_id == company_id,
             Employee.is_active == True,
             Employee.date_joined <= cutoff,
-        ).options(
+        )
+        if employee_ids is not None:
+            query = query.filter(Employee.id.in_(employee_ids))
+
+        employees = query.options(
             selectinload(Employee.employee_allowances).selectinload(
                 EmployeeAllowance.allowance_type
             ),
@@ -270,6 +275,25 @@ class EmployeeLoader:
             ))
 
         return result
+
+    @staticmethod
+    def load_by_ids(
+        company_id: int,
+        employee_ids: List[int],
+        period_start: date,
+        period_end: date,
+        session: Session,
+    ) -> List[EmployeePayrollData]:
+        """Load a specific subset of employees for batch payroll processing."""
+        if not employee_ids:
+            return []
+        return EmployeeLoader.load_all(
+            company_id=company_id,
+            period_start=period_start,
+            period_end=period_end,
+            session=session,
+            employee_ids=employee_ids,
+        )
 
     @staticmethod
     def count_eligible(

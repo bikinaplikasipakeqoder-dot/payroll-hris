@@ -79,6 +79,15 @@ export default function PayrollPage() {
   const [approving, setApproving] = useState<number | null>(null);
   const [processing, setProcessing] = useState<number | null>(null);
 
+  // Batch processing state
+  const [processingRunId, setProcessingRunId] = useState<number | null>(null);
+  const [processProgress, setProcessProgress] = useState({
+    current: 0,
+    total: 0,
+    message: '',
+  });
+  const [processError, setProcessError] = useState<string | null>(null);
+
   // Create modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -144,14 +153,60 @@ export default function PayrollPage() {
     }
   };
 
-  const handleProcess = async (runId: number) => {
-    setProcessing(runId);
+  const handleProcess = async (run: PayrollRun) => {
+    setProcessing(run.id);
+    setProcessingRunId(run.id);
+    setProcessError(null);
+    setProcessProgress({ current: 0, total: 0, message: 'Mempersiapkan...' });
+
     try {
-      await api.post(`/api/v1/payroll/runs/${runId}/process`, {});
+      const [year, month] = run.payroll_period.split('-').map(Number);
+      const start = `${year}-${String(month).padStart(2, '0')}-01`;
+      const end = new Date(year, month, 0).toISOString().split('T')[0];
+
+      // Fetch eligible employee IDs
+      const ids = await api.get<number[]>(
+        `/api/v1/payroll/preview/eligible-ids?company_id=${run.company_id}&period_start=${start}&period_end=${end}`
+      );
+
+      if (ids.length === 0) {
+        setProcessError('Tidak ada karyawan eligible untuk diproses.');
+        setProcessing(null);
+        return;
+      }
+
+      setProcessProgress({ current: 0, total: ids.length, message: `Memproses 0/${ids.length} karyawan...` });
+
+      const batchSize = 25;
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const batch = ids.slice(i, i + batchSize);
+        const isLast = i + batchSize >= ids.length;
+
+        setProcessProgress({
+          current: i,
+          total: ids.length,
+          message: `Memproses ${i + 1}-${Math.min(i + batchSize, ids.length)} dari ${ids.length} karyawan...`,
+        });
+
+        await api.post(`/api/v1/payroll/runs/${run.id}/process-batch`, {
+          employee_ids: batch,
+          finalize: isLast,
+        });
+
+        setProcessProgress({
+          current: Math.min(i + batchSize, ids.length),
+          total: ids.length,
+          message: `Selesai ${Math.min(i + batchSize, ids.length)}/${ids.length} karyawan...`,
+        });
+      }
+
       await fetchRuns();
-      router.push(`/payroll/${runId}`);
+      setProcessingRunId(null);
+      router.push(`/payroll/${run.id}`);
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Gagal memproses payroll.');
+      const msg = err instanceof ApiError ? err.message : 'Gagal memproses payroll.';
+      setProcessError(msg);
+      alert(msg);
     } finally {
       setProcessing(null);
     }
@@ -362,7 +417,7 @@ export default function PayrollPage() {
                         {run.status === 'DRAFT' && (
                           <button
                             title="Proses Gaji"
-                            onClick={() => handleProcess(run.id)}
+                            onClick={() => handleProcess(run)}
                             disabled={processing === run.id}
                             className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                           >
@@ -501,6 +556,45 @@ export default function PayrollPage() {
                 Buat
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Processing Progress Modal */}
+      {processingRunId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-xl shadow-xl border border-gray-200 p-6 w-full max-w-md mx-4">
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Memproses Payroll</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Mohon tunggu, payroll diproses per batch agar tidak timeout.
+              </p>
+            </div>
+
+            <div className="mb-2 flex justify-between text-sm text-gray-600">
+              <span>{processProgress.message}</span>
+              <span>{processProgress.current}/{processProgress.total}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                style={{
+                  width: processProgress.total > 0
+                    ? `${Math.round((processProgress.current / processProgress.total) * 100)}%`
+                    : '0%',
+                }}
+              />
+            </div>
+
+            {processError && (
+              <div className="mt-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {processError}
+              </div>
+            )}
           </div>
         </div>
       )}
