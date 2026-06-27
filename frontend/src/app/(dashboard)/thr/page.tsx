@@ -16,6 +16,7 @@ import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
 import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
+import { ExcelActions } from '@/components/ui/ExcelActions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -238,7 +239,8 @@ export default function THRPage() {
             Kelola perhitungan THR berdasarkan hari raya keagamaan karyawan
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ExcelActions module="thr" companyId={1} onImportSuccess={fetchData} />
           <button
             onClick={handleCalculate}
             disabled={calculating}

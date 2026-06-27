@@ -17,6 +17,7 @@ import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
 import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
+import { ExcelActions } from '@/components/ui/ExcelActions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -332,15 +333,18 @@ export default function BonusesPage() {
         </div>
       ) : activeTab === 'records' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-900">Daftar Bonus Karyawan</h2>
-            <button
-              onClick={openAddBonusModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Tambah Bonus
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExcelActions module="bonuses" companyId={1} onImportSuccess={fetchData} />
+              <button
+                onClick={openAddBonusModal}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Bonus
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">

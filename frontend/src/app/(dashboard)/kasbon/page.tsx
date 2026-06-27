@@ -18,6 +18,7 @@ import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
 import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
+import { ExcelActions } from '@/components/ui/ExcelActions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -284,13 +285,16 @@ export default function KasbonPage() {
             Kelola pinjaman karyawan dan jadwal cicilan yang dipotong dari gaji
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Tambah Pinjaman
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ExcelActions module="kasbon" companyId={1} onImportSuccess={fetchData} />
+          <button
+            onClick={openAddModal}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Tambah Pinjaman
+          </button>
+        </div>
       </div>
 
       {loading ? (

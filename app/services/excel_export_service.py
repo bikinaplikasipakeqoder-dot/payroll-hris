@@ -10,7 +10,9 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
 from app.models.attendance import AttendanceRecord
+from app.models.bonus import Bonus, BonusType, Reimbursement, ReimbursementType, THRRecord
 from app.models.employee import Department, Employee
+from app.models.kasbon import KasbonRequest
 from app.models.payroll import PayrollRun, Payslip
 
 
@@ -412,6 +414,267 @@ class ExcelExportService:
         ExcelExportService._freeze_header(ws)
         ExcelExportService._auto_width(ws)
         ExcelExportService._apply_currency_format(ws, [5, 6])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    # ─── Bonus ─────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def export_bonuses(company_id: int, db: Session) -> bytes:
+        """Export bonus records for a company as Excel."""
+        rows = db.query(Bonus).join(Employee, Bonus.employee_id == Employee.id).filter(
+            Employee.company_id == company_id
+        ).order_by(Bonus.bonus_date.desc()).all()
+
+        employee_ids = [r.employee_id for r in rows]
+        employees = {
+            e.id: e
+            for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+        } if employee_ids else {}
+
+        type_ids = [r.bonus_type_id for r in rows]
+        types = {
+            t.id: t
+            for t in db.query(BonusType).filter(BonusType.id.in_(type_ids)).all()
+        } if type_ids else {}
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bonuses"
+        headers = ["employee_code", "bonus_type_code", "amount", "bonus_date", "description", "approval_status"]
+        ws.append(headers)
+
+        for r in rows:
+            emp = employees.get(r.employee_id)
+            bt = types.get(r.bonus_type_id)
+            ws.append([
+                emp.employee_code if emp else "",
+                bt.code if bt else "",
+                ExcelExportService._decimal_to_float(r.amount),
+                r.bonus_date.isoformat(),
+                r.description or "",
+                r.approval_status,
+            ])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [3])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    @staticmethod
+    def generate_bonus_template(company_id: int, db: Session) -> bytes:
+        """Generate an empty bonus import template with available type codes."""
+        types = db.query(BonusType).filter(
+            BonusType.company_id == company_id,
+            BonusType.is_active == True,
+        ).all()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bonus Template"
+        headers = ["employee_code", "bonus_type_code", "amount", "bonus_date", "description"]
+        ws.append(headers)
+        ws.append(["EMP0001", types[0].code if types else "BONUS001", 1000000, "2026-01-15", "Bonus kinerja"])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [3])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    # ─── THR ───────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def export_thr(company_id: int, db: Session) -> bytes:
+        """Export THR records for a company as Excel."""
+        rows = db.query(THRRecord).filter(THRRecord.company_id == company_id).order_by(
+            THRRecord.thr_year.desc(), THRRecord.thr_date.desc()
+        ).all()
+
+        employee_ids = [r.employee_id for r in rows]
+        employees = {
+            e.id: e
+            for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+        } if employee_ids else {}
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "THR"
+        headers = ["employee_code", "thr_year", "religious_holiday", "amount", "thr_date", "calculation_basis", "description"]
+        ws.append(headers)
+
+        for r in rows:
+            emp = employees.get(r.employee_id)
+            ws.append([
+                emp.employee_code if emp else "",
+                r.thr_year,
+                r.religious_holiday,
+                ExcelExportService._decimal_to_float(r.amount),
+                r.thr_date.isoformat(),
+                r.calculation_basis,
+                r.description or "",
+            ])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [4])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    @staticmethod
+    def generate_thr_template() -> bytes:
+        """Generate an empty THR import template."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "THR Template"
+        headers = ["employee_code", "thr_year", "religious_holiday", "amount", "thr_date", "calculation_basis", "description"]
+        ws.append(headers)
+        ws.append(["EMP0001", 2026, "IDUL_FITRI", 5000000, "2026-04-01", "BASE_SALARY", "THR tahunan"])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [4])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    # ─── Reimbursement ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def export_reimbursements(company_id: int, db: Session) -> bytes:
+        """Export reimbursement claims for a company as Excel."""
+        rows = db.query(Reimbursement).join(Employee, Reimbursement.employee_id == Employee.id).filter(
+            Employee.company_id == company_id
+        ).order_by(Reimbursement.claim_date.desc()).all()
+
+        employee_ids = [r.employee_id for r in rows]
+        employees = {
+            e.id: e
+            for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+        } if employee_ids else {}
+
+        type_ids = [r.reimbursement_type_id for r in rows]
+        types = {
+            t.id: t
+            for t in db.query(ReimbursementType).filter(ReimbursementType.id.in_(type_ids)).all()
+        } if type_ids else {}
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reimbursements"
+        headers = ["employee_code", "reimbursement_type_code", "claim_amount", "approved_amount", "claim_date", "expense_date", "description", "approval_status"]
+        ws.append(headers)
+
+        for r in rows:
+            emp = employees.get(r.employee_id)
+            rt = types.get(r.reimbursement_type_id)
+            ws.append([
+                emp.employee_code if emp else "",
+                rt.code if rt else "",
+                ExcelExportService._decimal_to_float(r.claim_amount),
+                ExcelExportService._decimal_to_float(r.approved_amount) if r.approved_amount else "",
+                r.claim_date.isoformat(),
+                r.expense_date.isoformat(),
+                r.description or "",
+                r.approval_status,
+            ])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [3, 4])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    @staticmethod
+    def generate_reimbursement_template(company_id: int, db: Session) -> bytes:
+        """Generate an empty reimbursement import template with available type codes."""
+        types = db.query(ReimbursementType).filter(
+            ReimbursementType.company_id == company_id,
+            ReimbursementType.is_active == True,
+        ).all()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reimbursement Template"
+        headers = ["employee_code", "reimbursement_type_code", "claim_amount", "claim_date", "expense_date", "description"]
+        ws.append(headers)
+        ws.append(["EMP0001", types[0].code if types else "REIMB001", 500000, "2026-01-15", "2026-01-10", "Transportasi dinas"])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [3])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    # ─── Kasbon ────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def export_kasbon(company_id: int, db: Session) -> bytes:
+        """Export kasbon/loan records for a company as Excel."""
+        rows = db.query(KasbonRequest).join(Employee, KasbonRequest.employee_id == Employee.id).filter(
+            Employee.company_id == company_id
+        ).order_by(KasbonRequest.request_date.desc()).all()
+
+        employee_ids = [r.employee_id for r in rows]
+        employees = {
+            e.id: e
+            for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+        } if employee_ids else {}
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Kasbon"
+        headers = ["employee_code", "kasbon_number", "principal_amount", "interest_rate", "number_of_installments", "request_date", "purpose", "status"]
+        ws.append(headers)
+
+        for r in rows:
+            emp = employees.get(r.employee_id)
+            ws.append([
+                emp.employee_code if emp else "",
+                r.kasbon_number,
+                ExcelExportService._decimal_to_float(r.principal_amount),
+                ExcelExportService._decimal_to_float(r.interest_rate) if r.interest_rate else 0,
+                r.number_of_installments,
+                r.request_date.isoformat(),
+                r.purpose,
+                r.status,
+            ])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [3])
+
+        output = BytesIO()
+        wb.save(output)
+        return output.getvalue()
+
+    @staticmethod
+    def generate_kasbon_template() -> bytes:
+        """Generate an empty kasbon import template."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Kasbon Template"
+        headers = ["employee_code", "kasbon_number", "principal_amount", "interest_rate", "number_of_installments", "request_date", "purpose"]
+        ws.append(headers)
+        ws.append(["EMP0001", "KSB-202601-0001", 10000000, 0, 6, "2026-01-15", "Kebutuhan darurat"])
+
+        ExcelExportService._freeze_header(ws)
+        ExcelExportService._auto_width(ws)
+        ExcelExportService._apply_currency_format(ws, [3])
 
         output = BytesIO()
         wb.save(output)

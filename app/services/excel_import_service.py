@@ -9,7 +9,9 @@ import pandas as pd
 from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
+from app.models.bonus import Bonus, BonusType, Reimbursement, ReimbursementType, THRRecord
 from app.models.employee import Department, Employee
+from app.models.kasbon import KasbonRequest
 from app.models.salary import AllowanceType, EmployeeAllowance, Grade
 from app.models.attendance import AttendanceRecord
 
@@ -17,6 +19,11 @@ from app.models.attendance import AttendanceRecord
 VALID_PTKP = {"TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"}
 VALID_GENDERS = {"M", "F"}
 VALID_ATTENDANCE_STATUSES = {"PRESENT", "ABSENT", "LEAVE", "SICK", "PERMITTED"}
+VALID_BONUS_STATUS = {"PENDING", "APPROVED", "REJECTED"}
+VALID_REIMBURSEMENT_STATUS = {"PENDING", "APPROVED", "REJECTED"}
+VALID_THR_HOLIDAYS = {"IDUL_FITRI", "CHRISTMAS", "NYEPI", "WAISAK"}
+VALID_THR_BASIS = {"BASE_SALARY", "PRORATED"}
+VALID_KASBON_STATUS = {"PENDING", "APPROVED", "DISBURSED", "COMPLETED", "REJECTED"}
 
 
 class ExcelImportService:
@@ -420,5 +427,381 @@ class ExcelImportService:
             "errors": [{"row": e["row"], "field": e.get("field"), "message": e["message"]} for e in errors],
         }
 
+        error_bytes = ExcelImportService._generate_error_report(errors) if errors else None
+        return result, error_bytes
+
+    @staticmethod
+    def import_bonuses(file_bytes: bytes, company_id: int, db: Session) -> tuple[dict, Optional[bytes]]:
+        """Bulk import bonus records from Excel file."""
+        df = pd.read_excel(BytesIO(file_bytes))
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+        emp_map = {
+            row.employee_code: row.id
+            for row in db.query(Employee.id, Employee.employee_code).filter(
+                Employee.company_id == company_id
+            ).all()
+        }
+        type_map = {
+            row.code: row.id
+            for row in db.query(BonusType.id, BonusType.code).filter(
+                BonusType.company_id == company_id
+            ).all()
+        }
+
+        errors = []
+        valid_records = []
+        total_rows = len(df)
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            emp_code = ExcelImportService._safe_str(row.get("employee_code"))
+            type_code = ExcelImportService._safe_str(row.get("bonus_type_code"))
+
+            if not emp_code:
+                errors.append({"row": row_num, "code": "", "field": "employee_code", "message": "employee_code is required"})
+                continue
+            emp_id = emp_map.get(emp_code)
+            if emp_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "employee_code", "message": f"Employee not found: {emp_code}"})
+                continue
+
+            if not type_code:
+                errors.append({"row": row_num, "code": emp_code, "field": "bonus_type_code", "message": "bonus_type_code is required"})
+                continue
+            type_id = type_map.get(type_code)
+            if type_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "bonus_type_code", "message": f"Bonus type not found: {type_code}"})
+                continue
+
+            try:
+                amount = float(row.get("amount"))
+                if amount <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "amount", "message": "amount must be a positive number"})
+                continue
+
+            bonus_date = ExcelImportService._parse_date(row.get("bonus_date"))
+            if not bonus_date:
+                errors.append({"row": row_num, "code": emp_code, "field": "bonus_date", "message": "bonus_date is required or invalid format (YYYY-MM-DD)"})
+                continue
+
+            status = ExcelImportService._safe_str(row.get("approval_status")) or "PENDING"
+            if status not in VALID_BONUS_STATUS:
+                errors.append({"row": row_num, "code": emp_code, "field": "approval_status", "message": f"Invalid status: {status}"})
+                continue
+
+            valid_records.append(Bonus(
+                employee_id=emp_id,
+                bonus_type_id=type_id,
+                amount=amount,
+                bonus_date=bonus_date,
+                description=ExcelImportService._safe_str(row.get("description")),
+                approval_status=status,
+            ))
+
+        if valid_records:
+            for i in range(0, len(valid_records), 50):
+                db.add_all(valid_records[i:i + 50])
+                db.flush()
+            db.commit()
+
+        result = {
+            "total_rows": total_rows,
+            "success_count": len(valid_records),
+            "error_count": len(errors),
+            "errors": [{"row": e["row"], "field": e.get("field"), "message": e["message"]} for e in errors],
+        }
+        error_bytes = ExcelImportService._generate_error_report(errors) if errors else None
+        return result, error_bytes
+
+    @staticmethod
+    def import_thr(file_bytes: bytes, company_id: int, db: Session) -> tuple[dict, Optional[bytes]]:
+        """Bulk import THR records from Excel file."""
+        df = pd.read_excel(BytesIO(file_bytes))
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+        emp_map = {
+            row.employee_code: row.id
+            for row in db.query(Employee.id, Employee.employee_code).filter(
+                Employee.company_id == company_id
+            ).all()
+        }
+
+        errors = []
+        valid_records = []
+        total_rows = len(df)
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            emp_code = ExcelImportService._safe_str(row.get("employee_code"))
+
+            if not emp_code:
+                errors.append({"row": row_num, "code": "", "field": "employee_code", "message": "employee_code is required"})
+                continue
+            emp_id = emp_map.get(emp_code)
+            if emp_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "employee_code", "message": f"Employee not found: {emp_code}"})
+                continue
+
+            try:
+                thr_year = int(float(row.get("thr_year")))
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "thr_year", "message": "thr_year must be a number"})
+                continue
+
+            holiday = ExcelImportService._safe_str(row.get("religious_holiday"))
+            if holiday not in VALID_THR_HOLIDAYS:
+                errors.append({"row": row_num, "code": emp_code, "field": "religious_holiday", "message": f"Invalid holiday: {holiday}. Must be one of {VALID_THR_HOLIDAYS}"})
+                continue
+
+            try:
+                amount = float(row.get("amount"))
+                if amount < 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "amount", "message": "amount must be a non-negative number"})
+                continue
+
+            thr_date = ExcelImportService._parse_date(row.get("thr_date"))
+            if not thr_date:
+                errors.append({"row": row_num, "code": emp_code, "field": "thr_date", "message": "thr_date is required or invalid format (YYYY-MM-DD)"})
+                continue
+
+            basis = ExcelImportService._safe_str(row.get("calculation_basis")) or "BASE_SALARY"
+            if basis not in VALID_THR_BASIS:
+                errors.append({"row": row_num, "code": emp_code, "field": "calculation_basis", "message": f"Invalid basis: {basis}. Must be one of {VALID_THR_BASIS}"})
+                continue
+
+            valid_records.append(THRRecord(
+                company_id=company_id,
+                employee_id=emp_id,
+                thr_year=thr_year,
+                religious_holiday=holiday,
+                amount=amount,
+                thr_date=thr_date,
+                calculation_basis=basis,
+                tenure_months=0,
+                description=ExcelImportService._safe_str(row.get("description")),
+            ))
+
+        if valid_records:
+            for i in range(0, len(valid_records), 50):
+                db.add_all(valid_records[i:i + 50])
+                db.flush()
+            db.commit()
+
+        result = {
+            "total_rows": total_rows,
+            "success_count": len(valid_records),
+            "error_count": len(errors),
+            "errors": [{"row": e["row"], "field": e.get("field"), "message": e["message"]} for e in errors],
+        }
+        error_bytes = ExcelImportService._generate_error_report(errors) if errors else None
+        return result, error_bytes
+
+    @staticmethod
+    def import_reimbursements(file_bytes: bytes, company_id: int, db: Session) -> tuple[dict, Optional[bytes]]:
+        """Bulk import reimbursement claims from Excel file."""
+        df = pd.read_excel(BytesIO(file_bytes))
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+        emp_map = {
+            row.employee_code: row.id
+            for row in db.query(Employee.id, Employee.employee_code).filter(
+                Employee.company_id == company_id
+            ).all()
+        }
+        type_map = {
+            row.code: row.id
+            for row in db.query(ReimbursementType.id, ReimbursementType.code).filter(
+                ReimbursementType.company_id == company_id
+            ).all()
+        }
+
+        errors = []
+        valid_records = []
+        total_rows = len(df)
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            emp_code = ExcelImportService._safe_str(row.get("employee_code"))
+            type_code = ExcelImportService._safe_str(row.get("reimbursement_type_code"))
+
+            if not emp_code:
+                errors.append({"row": row_num, "code": "", "field": "employee_code", "message": "employee_code is required"})
+                continue
+            emp_id = emp_map.get(emp_code)
+            if emp_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "employee_code", "message": f"Employee not found: {emp_code}"})
+                continue
+
+            if not type_code:
+                errors.append({"row": row_num, "code": emp_code, "field": "reimbursement_type_code", "message": "reimbursement_type_code is required"})
+                continue
+            type_id = type_map.get(type_code)
+            if type_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "reimbursement_type_code", "message": f"Reimbursement type not found: {type_code}"})
+                continue
+
+            try:
+                amount = float(row.get("claim_amount"))
+                if amount <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "claim_amount", "message": "claim_amount must be a positive number"})
+                continue
+
+            claim_date = ExcelImportService._parse_date(row.get("claim_date"))
+            if not claim_date:
+                errors.append({"row": row_num, "code": emp_code, "field": "claim_date", "message": "claim_date is required or invalid format (YYYY-MM-DD)"})
+                continue
+
+            expense_date = ExcelImportService._parse_date(row.get("expense_date")) or claim_date
+
+            status = ExcelImportService._safe_str(row.get("approval_status")) or "PENDING"
+            if status not in VALID_REIMBURSEMENT_STATUS:
+                errors.append({"row": row_num, "code": emp_code, "field": "approval_status", "message": f"Invalid status: {status}"})
+                continue
+
+            approved_amount = None
+            if "approved_amount" in df.columns:
+                try:
+                    approved_amount = float(row.get("approved_amount")) if row.get("approved_amount") is not None else None
+                except (ValueError, TypeError):
+                    pass
+
+            valid_records.append(Reimbursement(
+                employee_id=emp_id,
+                reimbursement_type_id=type_id,
+                claim_amount=amount,
+                approved_amount=approved_amount,
+                claim_date=claim_date,
+                expense_date=expense_date,
+                description=ExcelImportService._safe_str(row.get("description")),
+                approval_status=status,
+            ))
+
+        if valid_records:
+            for i in range(0, len(valid_records), 50):
+                db.add_all(valid_records[i:i + 50])
+                db.flush()
+            db.commit()
+
+        result = {
+            "total_rows": total_rows,
+            "success_count": len(valid_records),
+            "error_count": len(errors),
+            "errors": [{"row": e["row"], "field": e.get("field"), "message": e["message"]} for e in errors],
+        }
+        error_bytes = ExcelImportService._generate_error_report(errors) if errors else None
+        return result, error_bytes
+
+    @staticmethod
+    def import_kasbon(file_bytes: bytes, company_id: int, db: Session) -> tuple[dict, Optional[bytes]]:
+        """Bulk import kasbon/loan records from Excel file."""
+        df = pd.read_excel(BytesIO(file_bytes))
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+        emp_map = {
+            row.employee_code: row.id
+            for row in db.query(Employee.id, Employee.employee_code).filter(
+                Employee.company_id == company_id
+            ).all()
+        }
+
+        errors = []
+        valid_records = []
+        total_rows = len(df)
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            emp_code = ExcelImportService._safe_str(row.get("employee_code"))
+
+            if not emp_code:
+                errors.append({"row": row_num, "code": "", "field": "employee_code", "message": "employee_code is required"})
+                continue
+            emp_id = emp_map.get(emp_code)
+            if emp_id is None:
+                errors.append({"row": row_num, "code": emp_code, "field": "employee_code", "message": f"Employee not found: {emp_code}"})
+                continue
+
+            kasbon_number = ExcelImportService._safe_str(row.get("kasbon_number"))
+            if not kasbon_number:
+                errors.append({"row": row_num, "code": emp_code, "field": "kasbon_number", "message": "kasbon_number is required"})
+                continue
+
+            existing = db.query(KasbonRequest).filter(KasbonRequest.kasbon_number == kasbon_number).first()
+            if existing:
+                errors.append({"row": row_num, "code": emp_code, "field": "kasbon_number", "message": f"Kasbon number already exists: {kasbon_number}"})
+                continue
+
+            try:
+                principal = float(row.get("principal_amount"))
+                if principal <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "principal_amount", "message": "principal_amount must be a positive number"})
+                continue
+
+            try:
+                interest_rate = float(row.get("interest_rate")) if row.get("interest_rate") is not None else 0
+                if interest_rate < 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "interest_rate", "message": "interest_rate must be a non-negative number"})
+                continue
+
+            try:
+                installments = int(float(row.get("number_of_installments")))
+                if installments <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                errors.append({"row": row_num, "code": emp_code, "field": "number_of_installments", "message": "number_of_installments must be a positive integer"})
+                continue
+
+            request_date = ExcelImportService._parse_date(row.get("request_date"))
+            if not request_date:
+                errors.append({"row": row_num, "code": emp_code, "field": "request_date", "message": "request_date is required or invalid format (YYYY-MM-DD)"})
+                continue
+
+            purpose = ExcelImportService._safe_str(row.get("purpose"))
+            if not purpose:
+                errors.append({"row": row_num, "code": emp_code, "field": "purpose", "message": "purpose is required"})
+                continue
+
+            status = ExcelImportService._safe_str(row.get("status")) or "PENDING"
+            if status not in VALID_KASBON_STATUS:
+                errors.append({"row": row_num, "code": emp_code, "field": "status", "message": f"Invalid status: {status}"})
+                continue
+
+            total = principal * (1 + interest_rate / 100)
+            installment_amount = round(total / installments, 2)
+
+            valid_records.append(KasbonRequest(
+                employee_id=emp_id,
+                kasbon_number=kasbon_number,
+                principal_amount=principal,
+                interest_rate=interest_rate,
+                number_of_installments=installments,
+                installment_amount=installment_amount,
+                request_date=request_date,
+                purpose=purpose,
+                status=status,
+            ))
+
+        if valid_records:
+            for i in range(0, len(valid_records), 50):
+                db.add_all(valid_records[i:i + 50])
+                db.flush()
+            db.commit()
+
+        result = {
+            "total_rows": total_rows,
+            "success_count": len(valid_records),
+            "error_count": len(errors),
+            "errors": [{"row": e["row"], "field": e.get("field"), "message": e["message"]} for e in errors],
+        }
         error_bytes = ExcelImportService._generate_error_report(errors) if errors else None
         return result, error_bytes

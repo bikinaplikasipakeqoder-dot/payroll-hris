@@ -17,6 +17,7 @@ import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
 import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
+import { ExcelActions } from '@/components/ui/ExcelActions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -357,15 +358,18 @@ export default function ReimbursementsPage() {
         </div>
       ) : activeTab === 'records' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-900">Daftar Klaim Reimbursement</h2>
-            <button
-              onClick={openAddReimbursementModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Tambah Klaim
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <ExcelActions module="reimbursements" companyId={1} onImportSuccess={fetchData} />
+              <button
+                onClick={openAddReimbursementModal}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Klaim
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
