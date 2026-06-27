@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet } from 'lucide-react';
+import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin } from 'lucide-react';
 
 const settingsLinks = [
   {
@@ -59,6 +59,22 @@ const settingsLinks = [
     icon: Wallet,
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-50',
+  },
+  {
+    title: 'Entitas / Cabang',
+    description: 'Kelola lokasi, entitas, dan cabang perusahaan',
+    href: '/settings/entities',
+    icon: Building2,
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50',
+  },
+  {
+    title: 'UMP Regional',
+    description: 'Atur Upah Minimum Provinsi/Kota berdasarkan lokasi',
+    href: '/settings/ump',
+    icon: MapPin,
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50',
   },
 ];
 

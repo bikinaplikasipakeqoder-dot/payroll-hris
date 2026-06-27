@@ -5,6 +5,9 @@ from app.models.base import Base, TimestampMixin, SoftDeleteMixin, AuditMixin
 # Auth & Company
 from app.models.auth import Company, Role, Permission, UserRole, RolePermission, User
 
+# Company Entities & UMP
+from app.models.company_entity import Entity, UmpSetting
+
 # Employee & Organization
 from app.models.employee import Department, Position, EmploymentStatus, Employee
 
@@ -43,6 +46,8 @@ __all__ = [
     "Base", "TimestampMixin", "SoftDeleteMixin", "AuditMixin",
     # Auth & Company
     "Company", "Role", "Permission", "UserRole", "RolePermission", "User",
+    # Company Entities & UMP
+    "Entity", "UmpSetting",
     # Employee & Organization
     "Department", "Position", "EmploymentStatus", "Employee",
     # Salary & Compensation

@@ -27,6 +27,7 @@ export default function EmployeeTable({ employees, onRowClick }: EmployeeTablePr
           <TableHeadCell>Agama</TableHeadCell>
           <TableHeadCell>Department ID</TableHeadCell>
           <TableHeadCell>Posisi</TableHeadCell>
+          <TableHeadCell>Entitas</TableHeadCell>
           <TableHeadCell>Status</TableHeadCell>
           <TableHeadCell>Aksi</TableHeadCell>
         </TableRow>
@@ -41,6 +42,7 @@ export default function EmployeeTable({ employees, onRowClick }: EmployeeTablePr
             <TableCell>{employee.religion ?? '-'}</TableCell>
             <TableCell>{employee.department_id ?? '-'}</TableCell>
             <TableCell>{employee.position_id ?? '-'}</TableCell>
+            <TableCell>{employee.entity_id ?? '-'}</TableCell>
             <TableCell>
               <Badge variant={employee.is_active ? 'success' : 'danger'}>
                 {employee.is_active ? 'Aktif' : 'Nonaktif'}

@@ -16,6 +16,7 @@ from app.routers.allowances import router as allowances_router
 from app.routers.deductions import router as deductions_router
 from app.routers.bonuses import router as bonuses_router
 from app.routers.thr import router as thr_router
+from app.routers.company_entities import router as company_entities_router
 
 __all__ = [
     "payroll_router",
@@ -32,4 +33,5 @@ __all__ = [
     "deductions_router",
     "bonuses_router",
     "thr_router",
+    "company_entities_router",
 ]

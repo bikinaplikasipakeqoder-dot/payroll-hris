@@ -102,6 +102,7 @@ class Employee(Base, TimestampMixin):
     employment_status_id = Column(
         Integer, ForeignKey("employment_statuses.id"), nullable=True
     )
+    entity_id = Column(Integer, ForeignKey("entities.id"), nullable=True)
     date_joined = Column(Date, nullable=False)
     date_left = Column(Date, nullable=True)
     bank_name = Column(String(100), nullable=True)
@@ -116,6 +117,7 @@ class Employee(Base, TimestampMixin):
     department = relationship("Department", backref="employees")
     position = relationship("Position", backref="employees")
     employment_status = relationship("EmploymentStatus", backref="employees")
+    entity = relationship("Entity", backref="employees")
     employee_allowances = relationship("EmployeeAllowance", backref="employee", lazy="select")
 
     __table_args__ = (
@@ -133,5 +135,6 @@ class Employee(Base, TimestampMixin):
         ),
         Index("idx_employees_company_active", "company_id", "is_active"),
         Index("idx_employees_department", "department_id"),
+        Index("idx_employees_entity", "entity_id"),
         Index("idx_employees_ptkp", "ptkp_status"),
     )

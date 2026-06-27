@@ -22,6 +22,7 @@ from app.routers import (
     deductions_router,
     bonuses_router,
     thr_router,
+    company_entities_router,
 )
 from app.middleware.error_handler import register_exception_handlers
 
@@ -58,6 +59,7 @@ app.include_router(allowances_router, prefix="/api/v1")
 app.include_router(deductions_router, prefix="/api/v1")
 app.include_router(bonuses_router, prefix="/api/v1")
 app.include_router(thr_router, prefix="/api/v1")
+app.include_router(company_entities_router, prefix="/api/v1")
 
 
 @app.on_event("startup")

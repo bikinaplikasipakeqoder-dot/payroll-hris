@@ -33,6 +33,7 @@ class EmployeeCreate(BaseSchema):
     position_id: Optional[int] = None
     grade_id: Optional[int] = None
     employment_status_id: Optional[int] = None
+    entity_id: Optional[int] = None
     base_salary: Optional[Decimal] = None
     bank_name: Optional[str] = Field(None, max_length=100)
     bank_account_number: Optional[str] = Field(None, max_length=50)
@@ -67,6 +68,7 @@ class EmployeeUpdate(BaseSchema):
     position_id: Optional[int] = None
     grade_id: Optional[int] = None
     employment_status_id: Optional[int] = None
+    entity_id: Optional[int] = None
     base_salary: Optional[Decimal] = None
     bank_name: Optional[str] = Field(None, max_length=100)
     bank_account_number: Optional[str] = Field(None, max_length=50)
@@ -107,6 +109,7 @@ class EmployeeResponse(BaseSchema):
     position_id: Optional[int] = None
     grade_id: Optional[int] = None
     employment_status_id: Optional[int] = None
+    entity_id: Optional[int] = None
     date_joined: date
     date_left: Optional[date] = None
     bank_name: Optional[str] = None

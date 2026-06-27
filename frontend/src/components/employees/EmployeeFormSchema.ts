@@ -17,6 +17,7 @@ export const employeeFormSchema = z.object({
   position_id: z.number().optional().nullable(),
   grade_id: z.number().optional().nullable(),
   employment_status_id: z.number().optional().nullable(),
+  entity_id: z.number().optional().nullable(),
   ptkp_status: z.enum(['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3']),
   religion: z.enum(['Islam', 'Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu']).optional().or(z.literal('')),
 

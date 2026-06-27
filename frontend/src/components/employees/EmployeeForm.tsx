@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { employeeFormSchema, EmployeeFormData } from './EmployeeFormSchema';
 import { api } from '@/lib/api';
+import { Entity } from '@/types';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import EmployeeAllowances from './EmployeeAllowances';
@@ -48,6 +49,7 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
   const [positions, setPositions] = useState<MasterOption[]>([]);
   const [grades, setGrades] = useState<MasterOption[]>([]);
   const [employmentStatuses, setEmploymentStatuses] = useState<MasterOption[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
   const [masterLoading, setMasterLoading] = useState(true);
   const [masterError, setMasterError] = useState(false);
 
@@ -55,16 +57,18 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
     const fetchMasterData = async () => {
       setMasterLoading(true);
       try {
-        const [depts, pos, grd, statuses] = await Promise.all([
+        const [depts, pos, grd, statuses, ents] = await Promise.all([
           api.get<MasterOption[]>('/api/v1/master-data/departments?company_id=1').catch(() => []),
           api.get<MasterOption[]>('/api/v1/master-data/positions?company_id=1').catch(() => []),
           api.get<MasterOption[]>('/api/v1/master-data/grades?company_id=1').catch(() => []),
           api.get<MasterOption[]>('/api/v1/master-data/employment-statuses?company_id=1').catch(() => []),
+          api.get<Entity[]>('/api/v1/companies/1/entities').catch(() => []),
         ]);
         setDepartments(depts);
         setPositions(pos);
         setGrades(grd);
         setEmploymentStatuses(statuses);
+        setEntities(ents);
         if (!depts.length && !pos.length && !grd.length && !statuses.length) {
           setMasterError(true);
         }
@@ -97,6 +101,7 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
       position_id: null,
       grade_id: null,
       employment_status_id: null,
+      entity_id: null,
       ptkp_status: 'TK/0',
       religion: 'Islam',
       base_salary: null,
@@ -310,6 +315,22 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
               </select>
               {errors.ptkp_status && (
                 <p className="mt-1 text-sm text-red-600">{errors.ptkp_status.message}</p>
+              )}
+            </div>
+            <div className="w-full">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Entitas / Lokasi</label>
+              <select
+                {...register('entity_id', { valueAsNumber: true })}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                disabled={masterLoading}
+              >
+                <option value="">{masterLoading ? 'Memuat...' : entities.length ? 'Pilih Entitas' : 'Data tidak tersedia'}</option>
+                {entities.map((e) => (
+                  <option key={e.id} value={e.id}>{e.code} - {e.name} {e.city ? `(${e.city})` : ''}</option>
+                ))}
+              </select>
+              {errors.entity_id && (
+                <p className="mt-1 text-sm text-red-600">{errors.entity_id.message}</p>
               )}
             </div>
           </div>

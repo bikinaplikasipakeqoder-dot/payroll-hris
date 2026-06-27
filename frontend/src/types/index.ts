@@ -21,6 +21,7 @@ export interface Employee {
   position_id: number | null;
   grade_id: number | null;
   employment_status_id: number | null;
+  entity_id: number | null;
   date_joined: string;
   date_left: string | null;
   bank_name: string | null;
@@ -50,6 +51,7 @@ export interface EmployeeCreate {
   position_id?: number | null;
   grade_id?: number | null;
   employment_status_id?: number | null;
+  entity_id?: number | null;
   base_salary?: number | null;
   bank_name?: string | null;
   bank_account_number?: string | null;
@@ -88,6 +90,35 @@ export interface EmployeeAllowance {
   effective_date: string;
   end_date: string | null;
   notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface Entity {
+  id: number;
+  company_id: number;
+  code: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  phone: string | null;
+  email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface UmpSetting {
+  id: number;
+  company_id: number;
+  province: string;
+  city: string | null;
+  amount: number;
+  effective_date: string;
   is_active: boolean;
   created_at: string;
   updated_at: string | null;

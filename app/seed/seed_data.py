@@ -21,6 +21,7 @@ from app.models import (
     Company, Role, Permission, RolePermission,
     PtkpValue, TaxBracketPasal17, BpjsSetting,
     OvertimeSetting, Language, LeaveType, TaxSetting,
+    Entity, UmpSetting,
 )
 
 
@@ -59,6 +60,12 @@ def seed_all(db_session):
 
     # 11. Tax Settings
     _seed_tax_settings(db_session)
+
+    # 12. Default Entity / Branch
+    _seed_default_entity(db_session)
+
+    # 13. Default UMP Settings
+    _seed_ump_settings(db_session)
 
     print("[SEED] All seed data completed successfully.")
 
@@ -427,6 +434,68 @@ def _seed_tax_settings(db_session):
     db_session.add(setting)
     db_session.commit()
     print("[SEED] Tax settings seeded (PASAL_17).")
+
+
+def _seed_default_entity(db_session):
+    """Seed a default entity/branch for the company."""
+    existing = db_session.query(Entity).count()
+    if existing > 0:
+        print("[SEED] Entities already exist, skipping.")
+        return
+
+    company = db_session.query(Company).first()
+    company_id = company.id if company else 1
+
+    entity = Entity(
+        company_id=company_id,
+        code="HQ",
+        name="Kantor Pusat",
+        city="Jakarta Selatan",
+        province="DKI Jakarta",
+        is_active=True,
+    )
+    db_session.add(entity)
+    db_session.commit()
+    print("[SEED] Default entity seeded (HQ).")
+
+
+def _seed_ump_settings(db_session):
+    """Seed default UMP settings for major provinces."""
+    existing = db_session.query(UmpSetting).count()
+    if existing > 0:
+        print("[SEED] UMP settings already exist, skipping.")
+        return
+
+    company = db_session.query(Company).first()
+    company_id = company.id if company else 1
+
+    ump_data = [
+        ("DKI Jakarta", None, 5_067_381),
+        ("Jawa Barat", None, 2_057_495),
+        ("Jawa Tengah", None, 2_036_947),
+        ("Jawa Timur", None, 2_165_244),
+        ("Banten", None, 2_902_060),
+        ("Yogyakarta", None, 2_125_000),
+        ("Bali", None, 2_813_672),
+        ("Sumatera Utara", None, 2_809_689),
+        ("Sulawesi Selatan", None, 3_200_000),
+        ("Kalimantan Timur", None, 3_200_000),
+    ]
+
+    records = []
+    for province, city, amount in ump_data:
+        records.append(UmpSetting(
+            company_id=company_id,
+            province=province,
+            city=city,
+            amount=Decimal(str(amount)),
+            effective_date=date(2026, 1, 1),
+            is_active=True,
+        ))
+
+    db_session.add_all(records)
+    db_session.commit()
+    print(f"[SEED] UMP settings seeded ({len(records)} regions).")
 
 
 if __name__ == "__main__":

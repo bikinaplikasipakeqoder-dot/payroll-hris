@@ -7,7 +7,10 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from decimal import Decimal
+
 from app.database import get_db
+from app.models.company_entity import Entity, UmpSetting
 from app.models.employee import Employee
 from app.models.payroll import Payslip
 from app.models.salary import AllowanceType, EmployeeAllowance
@@ -20,6 +23,58 @@ from app.schemas.salary import (
 )
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
+
+
+def _get_ump_amount(db: Session, company_id: int, province: Optional[str], city: Optional[str]) -> Optional[Decimal]:
+    """Fetch the active UMP amount for a province/city, preferring city-specific over province-only."""
+    if not province:
+        return None
+
+    query = db.query(UmpSetting).filter(
+        UmpSetting.company_id == company_id,
+        UmpSetting.province.ilike(province.strip()),
+        UmpSetting.is_active == True,
+    )
+    if city:
+        city_match = query.filter(UmpSetting.city.ilike(city.strip())).order_by(UmpSetting.effective_date.desc()).first()
+        if city_match:
+            return city_match.amount
+
+    province_match = query.filter(UmpSetting.city.is_(None)).order_by(UmpSetting.effective_date.desc()).first()
+    if province_match:
+        return province_match.amount
+
+    return None
+
+
+def _validate_ump(
+    db: Session,
+    company_id: int,
+    entity_id: Optional[int],
+    base_salary: Optional[Decimal],
+) -> None:
+    """Validate base salary is not below the UMP for the entity location."""
+    if base_salary is None:
+        return
+
+    province = None
+    city = None
+    if entity_id:
+        entity = db.query(Entity).filter(Entity.id == entity_id, Entity.company_id == company_id).first()
+        if entity:
+            province = entity.province
+            city = entity.city
+
+    ump = _get_ump_amount(db, company_id, province, city)
+    if ump is not None and base_salary < ump:
+        location = f"{city}, {province}" if city else province
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "BelowUmp",
+                "message": f"Gaji pokok (Rp {base_salary:,.0f}) di bawah UMP {location} (Rp {ump:,.0f})",
+            },
+        )
 
 
 @router.get(
@@ -73,6 +128,9 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
             },
         )
 
+    # Validate base salary against UMP
+    _validate_ump(db, payload.company_id, payload.entity_id, payload.base_salary)
+
     # Build full_name
     full_name = payload.first_name
     if payload.last_name:
@@ -95,6 +153,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
         position_id=payload.position_id,
         grade_id=payload.grade_id,
         employment_status_id=payload.employment_status_id,
+        entity_id=payload.entity_id,
         base_salary=payload.base_salary,
         bank_name=payload.bank_name,
         bank_account_number=payload.bank_account_number,
@@ -163,6 +222,9 @@ def update_employee(
     for field, value in update_data.items():
         model_field = field_mapping.get(field, field)
         setattr(employee, model_field, value)
+
+    # Validate base salary against UMP after applying updates
+    _validate_ump(db, employee.company_id, employee.entity_id, employee.base_salary)
 
     # Recompute full_name if name fields changed
     if "first_name" in update_data or "last_name" in update_data:
