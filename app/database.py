@@ -16,12 +16,17 @@ from app.models.base import Base
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./payroll.db")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
 
+# Build the SQLAlchemy-compatible engine URL. Turso URLs coming from the CLI
+# start with libsql://, but the sqlalchemy-libsql dialect expects sqlite+libsql://
+# with the auth token and secure=true in the query string.
 if DATABASE_URL.startswith("libsql://"):
+    import sqlalchemy_libsql  # noqa: F401  registers the sqlite.libsql dialect
+
+    host_path = DATABASE_URL[len("libsql://"):]
+    engine_url = f"sqlite+libsql://{host_path}?secure=true"
     engine = create_engine(
-        DATABASE_URL,
+        engine_url,
         connect_args={"auth_token": TURSO_AUTH_TOKEN},
-        pool_size=1,
-        max_overflow=0,
         echo=False,
     )
 else:
