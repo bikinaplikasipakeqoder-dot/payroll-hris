@@ -59,6 +59,15 @@ PTKP_WEIGHTS = {
     "TK/2": 10, "K/2": 5, "K/3": 5,
 }
 
+# Approximate Indonesian demographics
+RELIGIONS = [
+    ("Islam", 870),
+    ("Protestan", 70),
+    ("Katolik", 30),
+    ("Hindu", 20),
+    ("Buddha", 10),
+]
+
 BANKS = [("BCA", 40), ("Mandiri", 35), ("BNI", 25)]
 
 
@@ -209,6 +218,8 @@ def seed_bulk_employees(db: Session, company_id: int = 1, count: int = 200):
 
     ptkp_keys = list(PTKP_WEIGHTS.keys())
     ptkp_wts = list(PTKP_WEIGHTS.values())
+    religion_names = [r[0] for r in RELIGIONS]
+    religion_weights = [r[1] for r in RELIGIONS]
     bank_names = [b[0] for b in BANKS]
     bank_weights = [b[1] for b in BANKS]
 
@@ -229,6 +240,7 @@ def seed_bulk_employees(db: Session, company_id: int = 1, count: int = 200):
         personal_id = fake.numerify("################")  # 16 digits
         npwp = fake.numerify("###############") if random.random() < 0.8 else None
         ptkp_status = random.choices(ptkp_keys, weights=ptkp_wts)[0]
+        religion = random.choices(religion_names, weights=religion_weights)[0]
         phone = fake.phone_number()
         email = f"{first_name.lower()}.{last_name.lower()}{i}@company.com"
 
@@ -256,6 +268,7 @@ def seed_bulk_employees(db: Session, company_id: int = 1, count: int = 200):
             personal_id_number=personal_id,
             npwp=npwp,
             ptkp_status=ptkp_status,
+            religion=religion,
             phone=phone,
             email=email,
             department_id=random.choice(department_ids),

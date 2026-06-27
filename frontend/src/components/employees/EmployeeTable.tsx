@@ -24,6 +24,7 @@ export default function EmployeeTable({ employees, onRowClick }: EmployeeTablePr
         <TableRow>
           <TableHeadCell>Kode</TableHeadCell>
           <TableHeadCell>Nama Lengkap</TableHeadCell>
+          <TableHeadCell>Agama</TableHeadCell>
           <TableHeadCell>Department ID</TableHeadCell>
           <TableHeadCell>Posisi</TableHeadCell>
           <TableHeadCell>Status</TableHeadCell>
@@ -37,6 +38,7 @@ export default function EmployeeTable({ employees, onRowClick }: EmployeeTablePr
             <TableCell className="font-medium text-gray-900">
               {employee.full_name}
             </TableCell>
+            <TableCell>{employee.religion ?? '-'}</TableCell>
             <TableCell>{employee.department_id ?? '-'}</TableCell>
             <TableCell>{employee.position_id ?? '-'}</TableCell>
             <TableCell>

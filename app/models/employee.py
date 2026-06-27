@@ -89,6 +89,7 @@ class Employee(Base, TimestampMixin):
     personal_id_number = Column(String(50), nullable=True)
     npwp = Column(String(50), nullable=True)
     ptkp_status = Column(String(10), nullable=False, default="TK/0")
+    religion = Column(String(30), nullable=True, default="Islam")
     phone = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)
     address_street = Column(Text, nullable=True)
@@ -125,6 +126,10 @@ class Employee(Base, TimestampMixin):
         CheckConstraint(
             "ptkp_status IN ('TK/0','TK/1','TK/2','TK/3','K/0','K/1','K/2','K/3')",
             name="ck_employees_ptkp_status",
+        ),
+        CheckConstraint(
+            "religion IN ('Islam','Protestan','Katolik','Hindu','Buddha','Konghucu')",
+            name="ck_employees_religion",
         ),
         Index("idx_employees_company_active", "company_id", "is_active"),
         Index("idx_employees_department", "department_id"),

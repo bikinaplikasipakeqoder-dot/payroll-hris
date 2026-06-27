@@ -37,6 +37,7 @@ const tabs = [
 type TabId = (typeof tabs)[number]['id'];
 
 const PTKP_OPTIONS = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'] as const;
+const RELIGION_OPTIONS = ['Islam', 'Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'] as const;
 
 export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit, isSubmitting }: EmployeeFormProps) {
   const [activeTab, setActiveTab] = useState<TabId>('personal');
@@ -97,6 +98,7 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
       grade_id: null,
       employment_status_id: null,
       ptkp_status: 'TK/0',
+      religion: 'Islam',
       base_salary: null,
       npwp_number: '',
       bpjs_kes_number: '',
@@ -179,6 +181,24 @@ export default function EmployeeForm({ mode, employeeId, defaultValues, onSubmit
               error={errors.personal_id_number?.message}
               placeholder="Masukkan No. KTP"
             />
+            <div className="w-full">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Agama
+              </label>
+              <select
+                {...register('religion')}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                {RELIGION_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              {errors.religion && (
+                <p className="mt-1 text-sm text-red-600">{errors.religion.message}</p>
+              )}
+            </div>
             <Input
               label="No. Telepon"
               {...register('phone')}

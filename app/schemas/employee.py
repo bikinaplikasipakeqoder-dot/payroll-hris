@@ -23,6 +23,9 @@ class EmployeeCreate(BaseSchema):
     ptkp_status: Literal[
         "TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"
     ] = "TK/0"
+    religion: Literal[
+        "Islam", "Protestan", "Katolik", "Hindu", "Buddha", "Konghucu"
+    ] = "Islam"
     gender: Optional[Literal["M", "F"]] = None
     date_of_birth: Optional[date] = None
     date_joined: date
@@ -53,6 +56,9 @@ class EmployeeUpdate(BaseSchema):
     npwp_number: Optional[str] = Field(None, max_length=50)
     ptkp_status: Optional[
         Literal["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"]
+    ] = None
+    religion: Optional[
+        Literal["Islam", "Protestan", "Katolik", "Hindu", "Buddha", "Konghucu"]
     ] = None
     gender: Optional[Literal["M", "F"]] = None
     date_of_birth: Optional[date] = None
@@ -90,6 +96,7 @@ class EmployeeResponse(BaseSchema):
     personal_id_number: Optional[str] = None
     npwp: Optional[str] = None
     ptkp_status: str
+    religion: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     address_street: Optional[str] = None

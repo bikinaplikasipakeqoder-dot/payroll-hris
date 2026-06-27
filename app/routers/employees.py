@@ -87,6 +87,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
         personal_id_number=payload.personal_id_number,
         npwp=payload.npwp_number,
         ptkp_status=payload.ptkp_status,
+        religion=payload.religion,
         gender=payload.gender,
         date_of_birth=payload.date_of_birth,
         date_joined=payload.date_joined,

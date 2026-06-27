@@ -10,6 +10,7 @@ export interface Employee {
   personal_id_number: string | null;
   npwp: string | null;
   ptkp_status: string;
+  religion: string | null;
   phone: string | null;
   email: string | null;
   address_street: string | null;
@@ -41,6 +42,7 @@ export interface EmployeeCreate {
   personal_id_number?: string | null;
   npwp_number?: string | null;
   ptkp_status?: string;
+  religion?: string | null;
   gender?: string | null;
   date_of_birth?: string | null;
   date_joined: string;

@@ -74,6 +74,7 @@ export default function EditEmployeePage() {
     grade_id: emp.grade_id,
     employment_status_id: emp.employment_status_id,
     ptkp_status: emp.ptkp_status as EmployeeFormData['ptkp_status'],
+    religion: (emp.religion as EmployeeFormData['religion']) || 'Islam',
     base_salary: emp.base_salary,
     npwp_number: emp.npwp || '',
     bpjs_kes_number: emp.bpjs_kesehatan_number || '',
