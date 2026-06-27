@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: dependency_management
+title: Python Dependency Management via requirements.txt
+scope: []
+source_files:
+    - requirements.txt
+    - alembic.ini
+    - app/database.py
+depends_on: []
+related_to: []

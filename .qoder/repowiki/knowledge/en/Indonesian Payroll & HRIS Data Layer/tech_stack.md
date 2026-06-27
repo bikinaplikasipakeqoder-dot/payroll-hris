@@ -1,0 +1,1 @@
+Uses SQLAlchemy 2.0+ for ORM and Alembic 1.13+ for migrations, specifically tuned for SQLite/Turso compatibility via `render_as_batch` and `StaticPool`.

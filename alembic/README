@@ -1,0 +1,4 @@
+Generic single-database configuration for the Indonesian Payroll & HRIS system.
+
+This directory contains Alembic migration scripts for managing database schema changes.
+Uses render_as_batch=True for SQLite compatibility.

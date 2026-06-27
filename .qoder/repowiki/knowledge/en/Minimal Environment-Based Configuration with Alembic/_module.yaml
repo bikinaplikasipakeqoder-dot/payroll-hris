@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: configuration_system
+title: Minimal Environment-Based Configuration with Alembic
+scope: []
+source_files:
+    - app/database.py
+    - alembic.ini
+    - alembic/env.py
+    - requirements.txt
+depends_on: []
+related_to: []

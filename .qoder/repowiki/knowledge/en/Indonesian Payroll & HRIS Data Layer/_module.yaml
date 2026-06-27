@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: ""
+title: Indonesian Payroll & HRIS Data Layer
+scope:
+    - alembic/
+    - app/
+    - alembic.ini
+    - requirements.txt
+    - payroll.db
+source_files: []
+depends_on: []
+related_to: []

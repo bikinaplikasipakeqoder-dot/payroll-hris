@@ -1,0 +1,55 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: Q0DeR-MaG1C-BrAnCh-Fo2-NoN-GiT-Or-No-C0MmIt
+nodes_managed: true
+exported_at: "2026-06-26T13:09:47Z"
+modules:
+    "":
+        dir_name: Indonesian Payroll & HRIS Data Layer
+        title: Indonesian Payroll & HRIS Data Layer
+        scope:
+            - alembic/
+            - app/
+            - alembic.ini
+            - requirements.txt
+            - payroll.db
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    build_system:
+        dir_name: Minimalist Python Build & Migration Setup
+        title: Minimalist Python Build & Migration Setup
+        scope: []
+        source_files:
+            - requirements.txt
+            - alembic.ini
+            - app/database.py
+            - alembic/env.py
+        children: []
+        depends_on: []
+        related_to: []
+    configuration_system:
+        dir_name: Minimal Environment-Based Configuration with Alembic
+        title: Minimal Environment-Based Configuration with Alembic
+        scope: []
+        source_files:
+            - app/database.py
+            - alembic.ini
+            - alembic/env.py
+            - requirements.txt
+        children: []
+        depends_on: []
+        related_to: []
+    dependency_management:
+        dir_name: Python Dependency Management via requirements.txt
+        title: Python Dependency Management via requirements.txt
+        scope: []
+        source_files:
+            - requirements.txt
+            - alembic.ini
+            - app/database.py
+        children: []
+        depends_on: []
+        related_to: []

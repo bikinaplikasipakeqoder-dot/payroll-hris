@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: build_system
+title: Minimalist Python Build & Migration Setup
+scope: []
+source_files:
+    - requirements.txt
+    - alembic.ini
+    - app/database.py
+    - alembic/env.py
+depends_on: []
+related_to: []

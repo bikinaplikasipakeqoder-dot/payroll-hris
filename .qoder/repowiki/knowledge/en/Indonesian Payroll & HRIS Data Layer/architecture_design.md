@@ -1,0 +1,4 @@
+- Adopts a modular model architecture within `app/models/`, segregating domains such as auth, employee, salary, tax (Pasal 17/TER), BPJS, attendance, and payroll into distinct files.
+- Utilizes mixin-based inheritance (`TimestampMixin`, `SoftDeleteMixin`, `AuditMixin`) defined in `app/models/base.py` to enforce consistent auditing and lifecycle management across all entities.
+- Centralizes database engine configuration and session management in `app/database.py`, featuring SQLite-specific optimizations like foreign key enforcement via PRAGMA and static connection pooling.
+- Integrates Alembic for schema versioning, configured in `alembic/env.py` with `render_as_batch=True` to ensure compatibility with SQLite's limited ALTER TABLE support.

@@ -1,0 +1,2 @@
+- All domain models are imported and re-exported through `app/models/__init__.py` to facilitate centralized metadata registration for Alembic autogeneration.
+- Database sessions are managed via a dependency-injection compatible generator function `get_db()` that ensures proper session closure after each request or operation.
