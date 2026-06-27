@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, Banknote, Clock, Settings, LogOut, MessageSquare, FileText, Receipt, FileOutput, Award, Gift } from 'lucide-react';
+import { LayoutDashboard, Users, Banknote, Clock, Settings, LogOut, MessageSquare, FileText, Receipt, FileOutput, Award, Gift, Wallet } from 'lucide-react';
 import { getUser, logout, User } from '@/lib/auth';
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Payroll', icon: Banknote, href: '/payroll' },
   { label: 'Bonus', icon: Award, href: '/bonuses' },
   { label: 'THR', icon: Gift, href: '/thr' },
+  { label: 'Reimbursement', icon: Wallet, href: '/reimbursements' },
   { label: 'Slip Gaji', icon: Receipt, href: '/payslips' },
   { label: 'Kelola Payslip', icon: FileOutput, href: '/payslip-management' },
   { label: 'Kehadiran', icon: Clock, href: '/attendance' },

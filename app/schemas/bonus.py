@@ -141,3 +141,89 @@ class THRResponse(BaseSchema):
     is_processed: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+
+# ─── Reimbursement ───────────────────────────────────────────────────────────
+
+
+class ReimbursementTypeCreate(BaseSchema):
+    """Request schema for creating a reimbursement type."""
+
+    company_id: int
+    name: str
+    code: str
+    max_amount: Optional[Decimal] = None
+    is_taxable: bool = True
+    is_active: bool = True
+
+
+class ReimbursementTypeUpdate(BaseSchema):
+    """Request schema for updating a reimbursement type."""
+
+    name: Optional[str] = None
+    code: Optional[str] = None
+    max_amount: Optional[Decimal] = None
+    is_taxable: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class ReimbursementTypeResponse(BaseSchema):
+    """Response schema for a reimbursement type."""
+
+    id: int
+    company_id: int
+    name: str
+    code: str
+    max_amount: Optional[Decimal] = None
+    is_taxable: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class ReimbursementCreate(BaseSchema):
+    """Request schema for creating a reimbursement claim."""
+
+    employee_id: int
+    reimbursement_type_id: int
+    claim_amount: Decimal
+    claim_date: date
+    expense_date: date
+    description: Optional[str] = None
+    receipt_path: Optional[str] = None
+
+
+class ReimbursementUpdate(BaseSchema):
+    """Request schema for updating a reimbursement claim."""
+
+    reimbursement_type_id: Optional[int] = None
+    claim_amount: Optional[Decimal] = None
+    claim_date: Optional[date] = None
+    expense_date: Optional[date] = None
+    description: Optional[str] = None
+    receipt_path: Optional[str] = None
+    approved_amount: Optional[Decimal] = None
+    approval_status: Optional[str] = None
+
+
+class ReimbursementResponse(BaseSchema):
+    """Response schema for a reimbursement claim."""
+
+    id: int
+    employee_id: int
+    employee_name: str
+    reimbursement_type_id: int
+    reimbursement_type_name: str
+    claim_amount: Decimal
+    approved_amount: Optional[Decimal] = None
+    claim_date: date
+    expense_date: date
+    description: Optional[str] = None
+    receipt_path: Optional[str] = None
+    approval_status: str
+    approved_by: Optional[int] = None
+    approval_date: Optional[datetime] = None
+    payroll_run_id: Optional[int] = None
+    is_processed: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
