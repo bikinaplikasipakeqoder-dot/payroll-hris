@@ -280,7 +280,7 @@ class PayrollService:
         5. Insert payslips
         6. If finalize=True: compute totals from all payslips and set COMPLETED
         """
-        from app.models.payroll import Payslip
+        from app.models.payroll import Payslip, PayslipLine
 
         payroll_run = session.query(PayrollRun).filter(
             PayrollRun.id == payroll_run_id
@@ -331,7 +331,15 @@ class PayrollService:
             session=session,
         )
 
-        # Delete existing payslips for these employees to keep batches idempotent
+        # Delete existing payslips for these employees to keep batches idempotent.
+        # Lines must be deleted first because the FK does not cascade.
+        payslip_ids_to_delete = session.query(Payslip.id).filter(
+            Payslip.payroll_run_id == payroll_run_id,
+            Payslip.employee_id.in_(employee_ids),
+        ).subquery()
+        session.query(PayslipLine).filter(
+            PayslipLine.payslip_id.in_(payslip_ids_to_delete)
+        ).delete(synchronize_session=False)
         session.query(Payslip).filter(
             Payslip.payroll_run_id == payroll_run_id,
             Payslip.employee_id.in_(employee_ids),
