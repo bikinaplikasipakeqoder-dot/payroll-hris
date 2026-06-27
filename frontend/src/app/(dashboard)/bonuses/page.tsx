@@ -16,6 +16,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
+import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -500,21 +501,11 @@ export default function BonusesPage() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Karyawan</label>
-                <select
-                  value={bonusForm.employee_id}
-                  onChange={(e) => setBonusForm({ ...bonusForm, employee_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                >
-                  <option value="">Pilih Karyawan</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.first_name} {emp.last_name || ''} ({emp.employee_code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <EmployeeSearchSelect
+                employees={employees}
+                value={bonusForm.employee_id}
+                onChange={(value) => setBonusForm({ ...bonusForm, employee_id: value })}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Bonus</label>

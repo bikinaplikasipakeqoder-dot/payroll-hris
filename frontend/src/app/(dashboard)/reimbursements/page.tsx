@@ -16,6 +16,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
+import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -533,21 +534,11 @@ export default function ReimbursementsPage() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Karyawan</label>
-                <select
-                  value={reimbursementForm.employee_id}
-                  onChange={(e) => setReimbursementForm({ ...reimbursementForm, employee_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Pilih Karyawan</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.first_name} {emp.last_name || ''} ({emp.employee_code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <EmployeeSearchSelect
+                employees={employees}
+                value={reimbursementForm.employee_id}
+                onChange={(value) => setReimbursementForm({ ...reimbursementForm, employee_id: value })}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Reimbursement</label>
