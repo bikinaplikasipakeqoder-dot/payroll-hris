@@ -227,7 +227,7 @@ def list_employees(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     search: Optional[str] = Query(None, description="Search by full name or employee code"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
     """List employees with optional filters, search, and pagination."""
