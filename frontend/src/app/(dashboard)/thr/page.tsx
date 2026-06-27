@@ -17,6 +17,7 @@ import { formatIDR } from '@/lib/utils';
 import { PaginatedResponse } from '@/types';
 import { EmployeeSearchSelect } from '@/components/employees/EmployeeSearchSelect';
 import { ExcelActions } from '@/components/ui/ExcelActions';
+import Link from 'next/link';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,17 @@ interface THRRecord {
   tenure_months: number;
   status: 'DRAFT' | 'APPROVED' | 'PAID';
   description: string | null;
+}
+
+interface THRConfig {
+  id: number;
+  company_id: number;
+  payment_mode: 'BY_RELIGION' | 'UNIFIED';
+  unified_holiday: string;
+  full_tenure_months: number;
+  min_tenure_months: number;
+  prorate_partial_months: boolean;
+  is_active: boolean;
 }
 
 interface THRFormData {
@@ -89,6 +101,7 @@ export default function THRPage() {
 
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedHoliday, setSelectedHoliday] = useState<string>('IDUL_FITRI');
+  const [thrConfig, setThrConfig] = useState<THRConfig | null>(null);
 
   // ─── Data Fetching ──────────────────────────────────────────────────────────
 
@@ -96,12 +109,14 @@ export default function THRPage() {
     setLoading(true);
     setError(null);
     try {
-      const [recordsData, empData] = await Promise.all([
+      const [recordsData, empData, configData] = await Promise.all([
         api.get<THRRecord[]>(`/api/v1/thr?company_id=1&thr_year=${selectedYear}&religious_holiday=${selectedHoliday}`),
         api.get<PaginatedResponse<Employee>>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
+        api.get<THRConfig>('/api/v1/thr/config?company_id=1'),
       ]);
       setRecords(recordsData);
       setEmployees(empData.items);
+      setThrConfig(configData);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -116,6 +131,13 @@ export default function THRPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // In UNIFIED mode, force selected holiday to match the configured unified_holiday
+  useEffect(() => {
+    if (thrConfig?.payment_mode === 'UNIFIED' && thrConfig.unified_holiday !== selectedHoliday) {
+      setSelectedHoliday(thrConfig.unified_holiday);
+    }
+  }, [thrConfig]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
@@ -259,6 +281,31 @@ export default function THRPage() {
         </div>
       </div>
 
+      {/* Config Banner */}
+      {thrConfig && (
+        <div className="bg-pink-50 border border-pink-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-pink-800">
+              Mode Pembayaran: {thrConfig.payment_mode === 'UNIFIED' ? 'Serentak' : 'Pisah per Agama'}
+            </p>
+            <p className="text-xs text-pink-700 mt-0.5">
+              {thrConfig.payment_mode === 'UNIFIED'
+                ? `Semua karyawan dibayarkan bersama saat ${HOLIDAY_OPTIONS.find(h => h.value === thrConfig.unified_holiday)?.label || thrConfig.unified_holiday}`
+                : 'Setiap karyawan menerima THR sesuai hari raya keagamaannya'}
+              {' • '}
+              THR penuh setelah {thrConfig.full_tenure_months} bulan kerja
+              {thrConfig.prorate_partial_months && ' • Bulatkan bulan parsial ke atas'}
+            </p>
+          </div>
+          <Link
+            href="/settings/thr"
+            className="text-sm font-medium text-pink-700 hover:text-pink-800 underline underline-offset-2"
+          >
+            Ubah Pengaturan THR
+          </Link>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div className="flex flex-wrap items-center gap-4">
@@ -276,7 +323,8 @@ export default function THRPage() {
             <select
               value={selectedHoliday}
               onChange={(e) => setSelectedHoliday(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              disabled={thrConfig?.payment_mode === 'UNIFIED'}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               {HOLIDAY_OPTIONS.map((h) => (
                 <option key={h.value} value={h.value}>{h.label}</option>

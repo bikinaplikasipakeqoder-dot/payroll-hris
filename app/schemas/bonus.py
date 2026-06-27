@@ -90,6 +90,32 @@ class BonusResponse(BaseSchema):
 # ─── THR ─────────────────────────────────────────────────────────────────────
 
 
+class THRConfigResponse(BaseSchema):
+    """Response schema for company THR configuration."""
+
+    id: int
+    company_id: int
+    payment_mode: str
+    unified_holiday: str
+    full_tenure_months: int
+    min_tenure_months: int
+    prorate_partial_months: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class THRConfigUpdate(BaseSchema):
+    """Request schema for updating company THR configuration."""
+
+    payment_mode: str
+    unified_holiday: str
+    full_tenure_months: int
+    min_tenure_months: int
+    prorate_partial_months: bool
+    is_active: bool = True
+
+
 class THRCreate(BaseSchema):
     """Request schema for creating a THR record."""
 

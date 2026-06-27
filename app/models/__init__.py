@@ -37,7 +37,7 @@ from app.models.leave import LeaveType, EmployeeLeaveBalance, LeaveRequest
 from app.models.kasbon import KasbonRequest, KasbonInstallment
 
 # Bonus & Reimbursement
-from app.models.bonus import BonusType, Bonus, THRRecord, ReimbursementType, Reimbursement
+from app.models.bonus import BonusType, Bonus, THRConfig, THRRecord, ReimbursementType, Reimbursement
 
 # Rules Engine
 from app.models.rules import RuleCategory, RuleConfiguration, RuleVariable, RuleAuditLog
@@ -76,7 +76,7 @@ __all__ = [
     # Kasbon
     "KasbonRequest", "KasbonInstallment",
     # Bonus & Reimbursement
-    "BonusType", "Bonus", "THRRecord", "ReimbursementType", "Reimbursement",
+    "BonusType", "Bonus", "THRConfig", "THRRecord", "ReimbursementType", "Reimbursement",
     # Rules Engine
     "RuleCategory", "RuleConfiguration", "RuleVariable", "RuleAuditLog",
     # Payroll

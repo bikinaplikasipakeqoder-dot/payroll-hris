@@ -28,6 +28,9 @@
 - [app/models/tax.py](file://app/models/tax.py)
 - [app/models/bpjs.py](file://app/models/bpjs.py)
 - [app/models/leave.py](file://app/models/leave.py)
+- [app/schemas/excel.py](file://app/schemas/excel.py)
+- [app/services/excel_import_service.py](file://app/services/excel_import_service.py)
+- [app/services/excel_export_service.py](file://app/services/excel_export_service.py)
 </cite>
 
 ## Table of Contents
@@ -62,7 +65,7 @@ D["AI Services<br/>GET /api/v1/ai/settings<br/>POST /api/v1/ai/chat<br/>POST /ap
 E["Payslip Management<br/>GET /api/v1/payslip/{emp}/{year}/{month}<br/>POST /api/v1/payslip/bulk-generate"]
 F["Attendance & Overtime<br/>POST /api/v1/attendance<br/>POST /api/v1/attendance/overtime<br/>GET /api/v1/attendance/overtime"]
 G["Master Data<br/>Departments, Positions, Grades<br/>Employment Statuses"]
-H["Excel Import/Export<br/>Import employees, attendance<br/>Export payslips, payroll summary"]
+H["Excel Import/Export<br/>Import employees, attendance, allowances<br/>Import bonuses, THR, reimbursements, kasbon, overtime<br/>Export payslips, payroll summary, BPJS recap, tax recap, attendance<br/>Export bonuses, THR, reimbursements, kasbon, overtime<br/>Download import templates"]
 I["Rules Engine<br/>Rule categories, configurations<br/>Audit logs, variable management"]
 J["Additional Features<br/>Bonuses, Reimbursements, THR<br/>Deductions, Company Entities"]
 end
@@ -113,6 +116,7 @@ The Payroll system consists of several core components that work together to pro
 - **AI Integration**: AI-powered chat assistance, automated report generation, and intelligent payroll insights
 - **Payslip Management**: Electronic payslip generation, bulk processing, and PDF export capabilities
 - **Master Data**: Organizational structure management including departments, positions, grades, and employment statuses
+- **Excel Import/Export System**: Comprehensive bulk data operations with validation, error reporting, and template generation
 - **Administrative Functions**: Rules engine, bonus management, reimbursement processing, and company entity configuration
 
 **Section sources**
@@ -135,6 +139,8 @@ end
 subgraph "Business Logic Layer"
 Services["Service Layer<br/>PayrollService, ExcelService,<br/>PayslipService, AIService"]
 Calculations["Calculation Engine<br/>Allowance, Overtime, Tax,<br/>BPJS, Gross/Nett"]
+ExcelImport["Excel Import Service<br/>Validation, Error Handling,<br/>Template Generation"]
+ExcelExport["Excel Export Service<br/>Report Generation,<br/>Formatting & Styling"]
 end
 subgraph "Data Access Layer"
 Database["SQLAlchemy ORM<br/>Database Models & Relationships"]
@@ -152,6 +158,7 @@ Services --> Database
 Database --> Sessions
 Services --> AI
 Services --> Storage
+ExcelImport --> ExcelExport
 ```
 
 **Diagram sources**
@@ -410,6 +417,51 @@ Shift --> AttendanceRecord : "assigns many"
 **Section sources**
 - [app/models/attendance.py:21-133](file://app/models/attendance.py#L21-L133)
 
+### Excel Import/Export System
+Comprehensive bulk data operations with validation, error reporting, and template generation:
+
+```mermaid
+classDiagram
+class ExcelImportService {
++import_employees(bytes, int, Session) tuple
++import_attendance(bytes, int, Session) tuple
++import_allowances(bytes, int, Session) tuple
++import_bonuses(bytes, int, Session) tuple
++import_thr(bytes, int, Session) tuple
++import_reimbursements(bytes, int, Session) tuple
++import_kasbon(bytes, int, Session) tuple
++import_overtime(bytes, int, Session) tuple
++_generate_error_report(list) bytes
+}
+class ExcelExportService {
++export_payslips(int, Session) bytes
++export_payroll_summary(int, Session) bytes
++export_bpjs_recap(int, int, int, Session) bytes
++export_tax_recap(int, int, int, Session) bytes
++export_attendance(int, int, int, Session) bytes
++export_overtime(int, int, int, Session) bytes
++export_bonuses(int, Session) bytes
++export_thr(int, Session) bytes
++export_reimbursements(int, Session) bytes
++export_kasbon(int, Session) bytes
++generate_attendance_template() bytes
++generate_bonus_template(int, Session) bytes
++generate_thr_template() bytes
++generate_reimbursement_template(int, Session) bytes
++generate_kasbon_template() bytes
++generate_overtime_template() bytes
+}
+ExcelImportService --> ExcelExportService : "complementary"
+```
+
+**Diagram sources**
+- [app/services/excel_import_service.py:30-888](file://app/services/excel_import_service.py#L30-L888)
+- [app/services/excel_export_service.py:19-771](file://app/services/excel_export_service.py#L19-L771)
+
+**Section sources**
+- [app/services/excel_import_service.py:30-888](file://app/services/excel_import_service.py#L30-L888)
+- [app/services/excel_export_service.py:19-771](file://app/services/excel_export_service.py#L19-L771)
+
 ## API Endpoints
 
 ### Payroll Processing Endpoints
@@ -550,23 +602,51 @@ Organizational structure management:
 - [app/routers/master_data.py:27-287](file://app/routers/master_data.py#L27-L287)
 
 ### Excel Import/Export Endpoints
-Bulk data operations:
+Comprehensive bulk data operations with validation and error reporting:
 
+#### Import Endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/excel/import/employees` | Bulk import employees from Excel |
-| POST | `/api/v1/excel/import/attendance` | Bulk import attendance from Excel |
-| POST | `/api/v1/excel/import/allowances` | Bulk import allowances from Excel |
-| GET | `/api/v1/excel/export/payslips/{payroll_run_id}` | Export payslips as Excel |
-| GET | `/api/v1/excel/export/payroll-summary/{payroll_run_id}` | Export payroll summary as Excel |
-| GET | `/api/v1/excel/export/bpjs-recap` | Export BPJS recap as Excel |
-| GET | `/api/v1/excel/export/tax-recap` | Export tax recap as Excel |
-| GET | `/api/v1/excel/export/attendance` | Export attendance as Excel |
+| POST | `/api/v1/excel/import/employees` | Bulk import employees from Excel file |
+| POST | `/api/v1/excel/import/attendance` | Bulk import attendance records from Excel file |
+| POST | `/api/v1/excel/import/allowances` | Bulk import employee allowances from Excel file |
+| POST | `/api/v1/excel/import/bonuses` | Bulk import bonus records from Excel file |
+| POST | `/api/v1/excel/import/thr` | Bulk import THR records from Excel file |
+| POST | `/api/v1/excel/import/reimbursements` | Bulk import reimbursement claims from Excel file |
+| POST | `/api/v1/excel/import/kasbon` | Bulk import kasbon/loan records from Excel file |
+| POST | `/api/v1/excel/import/overtime` | Bulk import overtime records from Excel file |
+
+#### Export Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/excel/export/payslips/{payroll_run_id}` | Export payslips for a payroll run as Excel |
+| GET | `/api/v1/excel/export/payroll-summary/{payroll_run_id}` | Export payroll summary by department as Excel |
+| GET | `/api/v1/excel/export/bpjs-recap?company_id={id}&month={month}&year={year}` | Export BPJS recap for a month as Excel |
+| GET | `/api/v1/excel/export/tax-recap?company_id={id}&month={month}&year={year}` | Export tax (PPh 21) recap for a month as Excel |
+| GET | `/api/v1/excel/export/attendance?company_id={id}&month={month}&year={year}` | Export attendance records for a month as Excel |
+| GET | `/api/v1/excel/export/bonuses?company_id={id}` | Export bonus records for a company as Excel |
+| GET | `/api/v1/excel/export/thr?company_id={id}` | Export THR records for a company as Excel |
+| GET | `/api/v1/excel/export/reimbursements?company_id={id}` | Export reimbursement claims for a company as Excel |
+| GET | `/api/v1/excel/export/kasbon?company_id={id}` | Export kasbon/loan records for a company as Excel |
+| GET | `/api/v1/excel/export/overtime?company_id={id}&month={month}&year={year}` | Export overtime records for a month as Excel |
+
+#### Template Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | GET | `/api/v1/excel/templates/attendance` | Download attendance import template |
-| POST | `/api/v1/excel/admin/seed-bulk` | Trigger bulk employee seeding |
+| GET | `/api/v1/excel/templates/bonuses?company_id={id}` | Download bonus import template |
+| GET | `/api/v1/excel/templates/thr` | Download THR import template |
+| GET | `/api/v1/excel/templates/reimbursements?company_id={id}` | Download reimbursement import template |
+| GET | `/api/v1/excel/templates/kasbon` | Download kasbon import template |
+| GET | `/api/v1/excel/templates/overtime` | Download overtime import template |
+
+#### Admin Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/excel/admin/seed-bulk` | Trigger bulk employee seeding via API (admin only) |
 
 **Section sources**
-- [app/routers/excel.py:18-182](file://app/routers/excel.py#L18-L182)
+- [app/routers/excel.py:18-430](file://app/routers/excel.py#L18-L430)
 
 ### Rules Engine Endpoints
 Advanced rule configuration:
@@ -687,6 +767,8 @@ The Payroll system relies on several key technologies and libraries:
 - **httpx**: HTTP client for external API calls
 - **langchain**: AI/LLM integration
 - **openai**: OpenAI API client
+- **pandas**: Data manipulation and Excel file processing
+- **openpyxl**: Excel file generation and manipulation
 
 ### Configuration Management
 - **Environment Variables**: JWT secret, database URL, AI provider settings
@@ -704,6 +786,8 @@ JWT["python-jose"]
 Passlib["passlib Hashing"]
 LangChain["LangChain AI"]
 OpenAI["OpenAI Client"]
+Pandas["pandas Data Processing"]
+OpenPyXL["openpyxl Excel Operations"]
 App --> FastAPI
 App --> SQLAlchemy
 App --> Alembic
@@ -712,6 +796,8 @@ App --> JWT
 App --> Passlib
 App --> LangChain
 App --> OpenAI
+App --> Pandas
+App --> OpenPyXL
 ```
 
 **Diagram sources**
@@ -740,6 +826,12 @@ The Payroll system is designed for high performance and scalability:
 - **Batch Processing**: Payroll runs processed in batches to optimize resource usage
 - **Queue Management**: Message queues for handling large-scale operations
 
+### Excel Processing Optimization
+- **Streaming Responses**: Large Excel files streamed directly to clients
+- **Chunked Processing**: Excel import operations process data in chunks (50 rows at a time)
+- **Memory Management**: Efficient memory usage during Excel file processing
+- **Template Generation**: Pre-generated templates reduce processing overhead
+
 ### Scalability Features
 - **Load Balancing**: Horizontal scaling support
 - **Database Sharding**: Potential for data partitioning
@@ -764,6 +856,13 @@ The Payroll system is designed for high performance and scalability:
 - **Migration Issues**: Run Alembic migrations to update schema
 - **Transaction Rollbacks**: Handle concurrent modification conflicts
 
+#### Excel Import/Export Issues
+- **File Format Errors**: Ensure Excel files (.xlsx or .xls) are uploaded correctly
+- **Template Mismatch**: Verify Excel column headers match expected format
+- **Validation Failures**: Check error reports generated for failed imports
+- **Memory Issues**: Large Excel files may cause memory constraints during processing
+- **Template Generation**: Ensure template endpoints are accessible for download
+
 #### Performance Issues
 - **Slow Queries**: Analyze query execution plans and add missing indexes
 - **Memory Leaks**: Monitor memory usage in long-running processes
@@ -783,6 +882,7 @@ Key strengths include:
 - **Extensibility**: Modular architecture supporting custom integrations and extensions
 - **Security**: Comprehensive authentication, authorization, and audit capabilities
 - **Automation**: End-to-end payroll processing with minimal manual intervention
+- **Excel Integration**: Comprehensive bulk data operations with validation and error reporting
 
 The API follows RESTful best practices with comprehensive error handling, pagination, and filtering capabilities. Clients should implement robust authentication using JWT, adhere to request/response schemas, apply rate limiting, and follow security best practices as outlined in this documentation.
 
@@ -811,7 +911,7 @@ The API follows RESTful best practices with comprehensive error handling, pagina
 - **Integration Testing**: End-to-end workflow validation
 - **Load Testing**: Performance benchmarking under expected load
 - **Security Testing**: Penetration testing and vulnerability assessment
-- **Regression Testing**: Automated testing for API changes
+- **Excel Testing**: Comprehensive testing of import/export functionality with various file formats
 
 ### Deployment Considerations
 - **Containerization**: Docker support for easy deployment
@@ -819,6 +919,16 @@ The API follows RESTful best practices with comprehensive error handling, pagina
 - **Monitoring**: Built-in health checks and performance metrics
 - **Backup Strategy**: Automated database backup and recovery procedures
 
+### Excel Import/Export Specifications
+- **Supported Formats**: .xlsx and .xls Excel files
+- **File Size Limits**: Configurable based on server resources
+- **Error Reporting**: Automatic error report generation with detailed row-by-row feedback
+- **Template Validation**: Strict validation against predefined templates
+- **Batch Processing**: Efficient chunked processing for large datasets
+
 **Section sources**
 - [app/main.py:32-34](file://app/main.py#L32-L34)
 - [app/config.py:6-8](file://app/config.py#L6-L8)
+- [app/schemas/excel.py:15-21](file://app/schemas/excel.py#L15-L21)
+- [app/services/excel_import_service.py:41-52](file://app/services/excel_import_service.py#L41-L52)
+- [app/services/excel_export_service.py:23-59](file://app/services/excel_export_service.py#L23-L59)

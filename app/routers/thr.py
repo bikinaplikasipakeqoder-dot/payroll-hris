@@ -10,9 +10,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.bonus import THRRecord
+from app.models.bonus import THRConfig, THRRecord
 from app.models.employee import Employee
-from app.schemas.bonus import THRCreate, THRResponse, THRUpdate, THRCalculateRequest
+from app.schemas.bonus import (
+    THRCreate,
+    THRResponse,
+    THRUpdate,
+    THRCalculateRequest,
+    THRConfigResponse,
+    THRConfigUpdate,
+)
 
 router = APIRouter(prefix="/thr", tags=["THR Management"])
 
@@ -20,22 +27,65 @@ VALID_HOLIDAYS = {"IDUL_FITRI", "CHRISTMAS", "NYEPI", "WAISAK"}
 VALID_STATUS = {"DRAFT", "APPROVED", "PAID"}
 
 
-def _months_between(start: date, end: date) -> int:
-    return (end.year - start.year) * 12 + (end.month - start.month)
+def _months_between(start: date, end: date, round_up_partial: bool = False) -> int:
+    """Return full months between two dates.
 
-
-def _calculate_thr_amount(base_salary: Decimal, tenure_months: int) -> tuple[Decimal, str]:
-    """Calculate THR amount based on Indonesian labor law.
-
-    - >= 12 months: 1 month base salary
-    - 3-12 months: prorated (tenure/12 * base salary)
-    - < 3 months: no THR (returns 0)
+    If round_up_partial is True, any day past the start day in the end month
+    counts as an additional full month.
     """
-    if tenure_months >= 12:
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if round_up_partial and end.day > start.day:
+        months += 1
+    return months
+
+
+def _calculate_thr_amount(
+    base_salary: Decimal,
+    tenure_months: int,
+    full_tenure_months: int,
+    min_tenure_months: int,
+) -> tuple[Decimal, str]:
+    """Calculate THR amount using configurable tenure thresholds.
+
+    - tenure >= full_tenure_months: 1 month base salary
+    - min_tenure_months <= tenure < full_tenure_months: prorated (tenure/12)
+    - tenure < min_tenure_months: no THR
+    """
+    if tenure_months >= full_tenure_months:
         return base_salary, "BASE_SALARY"
-    if tenure_months >= 3:
+    if tenure_months >= min_tenure_months:
         return round(base_salary * Decimal(tenure_months) / Decimal(12), 2), "PRORATED"
     return Decimal("0"), "PRORATED"
+
+
+HOLIDAY_TO_RELIGION = {
+    "IDUL_FITRI": {"Islam"},
+    "CHRISTMAS": {"Protestan", "Katolik"},
+    "NYEPI": {"Hindu"},
+    "WAISAK": {"Buddha"},
+}
+
+
+def _religion_matches_holiday(religion: str | None, holiday: str) -> bool:
+    """Check whether an employee religion matches a religious holiday."""
+    if not religion:
+        return False
+    allowed = HOLIDAY_TO_RELIGION.get(holiday, set())
+    return religion in allowed
+
+
+def _get_or_create_thr_config(db: Session, company_id: int) -> THRConfig:
+    config = db.query(THRConfig).filter(THRConfig.company_id == company_id).first()
+    if not config:
+        config = THRConfig(
+            company_id=company_id,
+            payment_mode="BY_RELIGION",
+            unified_holiday="IDUL_FITRI",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    return config
 
 
 def _build_thr_response(db: Session, thr: THRRecord) -> THRResponse:
@@ -63,6 +113,68 @@ def _build_thr_response(db: Session, thr: THRRecord) -> THRResponse:
         created_at=thr.created_at,
         updated_at=thr.updated_at,
     )
+
+
+@router.get(
+    "/config",
+    response_model=THRConfigResponse,
+    summary="Get company THR configuration",
+)
+def get_thr_config(
+    company_id: int = Query(..., description="Company ID"),
+    db: Session = Depends(get_db),
+):
+    """Return company THR configuration, creating defaults if missing."""
+    config = _get_or_create_thr_config(db, company_id)
+    return config
+
+
+@router.put(
+    "/config",
+    response_model=THRConfigResponse,
+    summary="Update company THR configuration",
+)
+def update_thr_config(
+    payload: THRConfigUpdate,
+    company_id: int = Query(..., description="Company ID"),
+    db: Session = Depends(get_db),
+):
+    """Update company THR configuration."""
+    if payload.payment_mode not in {"BY_RELIGION", "UNIFIED"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "InvalidValue",
+                "message": "payment_mode must be BY_RELIGION or UNIFIED",
+            },
+        )
+    if payload.unified_holiday not in VALID_HOLIDAYS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "InvalidValue",
+                "message": f"unified_holiday must be one of {sorted(VALID_HOLIDAYS)}",
+            },
+        )
+    if payload.full_tenure_months < payload.min_tenure_months:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "InvalidValue",
+                "message": "full_tenure_months must be >= min_tenure_months",
+            },
+        )
+
+    config = _get_or_create_thr_config(db, company_id)
+    config.payment_mode = payload.payment_mode
+    config.unified_holiday = payload.unified_holiday
+    config.full_tenure_months = payload.full_tenure_months
+    config.min_tenure_months = payload.min_tenure_months
+    config.prorate_partial_months = payload.prorate_partial_months
+    config.is_active = payload.is_active
+    db.commit()
+    db.refresh(config)
+    return config
 
 
 @router.get(
@@ -94,7 +206,13 @@ def list_thr_records(
     summary="Bulk calculate THR records",
 )
 def calculate_thr(payload: THRCalculateRequest, db: Session = Depends(get_db)):
-    """Bulk calculate THR for active employees based on religious holiday."""
+    """Bulk calculate THR for active employees based on company configuration.
+
+    - BY_RELIGION mode: only employees whose religion matches the requested
+      holiday are calculated.
+    - UNIFIED mode: all active employees are calculated for the requested
+      holiday (typically the configured unified_holiday).
+    """
     if payload.religious_holiday not in VALID_HOLIDAYS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -104,6 +222,8 @@ def calculate_thr(payload: THRCalculateRequest, db: Session = Depends(get_db)):
             },
         )
 
+    config = _get_or_create_thr_config(db, payload.company_id)
+
     employees = db.query(Employee).filter(
         Employee.company_id == payload.company_id,
         Employee.is_active == True,
@@ -111,11 +231,24 @@ def calculate_thr(payload: THRCalculateRequest, db: Session = Depends(get_db)):
 
     created_records = []
     for emp in employees:
-        if not emp.join_date or not emp.base_salary or emp.base_salary <= 0:
+        # In BY_RELIGION mode skip employees whose religion does not match
+        if config.payment_mode == "BY_RELIGION" and not _religion_matches_holiday(
+            emp.religion, payload.religious_holiday
+        ):
             continue
 
-        tenure_months = _months_between(emp.join_date, payload.reference_date)
-        amount, basis = _calculate_thr_amount(emp.base_salary, tenure_months)
+        if not emp.date_joined or not emp.base_salary or emp.base_salary <= 0:
+            continue
+
+        tenure_months = _months_between(
+            emp.date_joined, payload.reference_date, config.prorate_partial_months
+        )
+        amount, basis = _calculate_thr_amount(
+            emp.base_salary,
+            tenure_months,
+            config.full_tenure_months,
+            config.min_tenure_months,
+        )
 
         if amount <= 0:
             continue

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin, Cog, CalendarDays } from 'lucide-react';
+import { Bot, Users, Database, Banknote, HeartPulse, Calculator, Wallet, Building2, MapPin, Cog, CalendarDays, Gift } from 'lucide-react';
 
 const settingsLinks = [
   {
@@ -91,6 +91,14 @@ const settingsLinks = [
     icon: CalendarDays,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
+  },
+  {
+    title: 'THR',
+    description: 'Atur mode pembayaran THR dan prorate berdasarkan join date',
+    href: '/settings/thr',
+    icon: Gift,
+    color: 'text-pink-600',
+    bgColor: 'bg-pink-50',
   },
 ];
 

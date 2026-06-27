@@ -69,6 +69,44 @@ class Bonus(Base, TimestampMixin):
     )
 
 
+class THRConfig(Base, TimestampMixin):
+    """Company-level THR payment configuration.
+
+    - payment_mode:
+        * BY_RELIGION: each employee receives THR on their own religious holiday
+        * UNIFIED: all active employees receive THR together on the configured
+                   unified_holiday date (commonly Idul Fitri)
+    - unified_holiday: the holiday used when payment_mode is UNIFIED
+    - full_tenure_months: tenure threshold for full (1x base salary) THR
+    - min_tenure_months: minimum tenure (in months) to be eligible for prorated THR
+    - prorate_partial_months: whether a partial month counts as a full month
+    """
+
+    __tablename__ = "thr_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
+    payment_mode = Column(String(20), nullable=False, default="BY_RELIGION")
+    unified_holiday = Column(String(20), nullable=False, default="IDUL_FITRI")
+    full_tenure_months = Column(Integer, nullable=False, default=12)
+    min_tenure_months = Column(Integer, nullable=False, default=1)
+    prorate_partial_months = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "payment_mode IN ('BY_RELIGION', 'UNIFIED')",
+            name="ck_thr_configs_payment_mode",
+        ),
+        CheckConstraint(
+            "unified_holiday IN ('IDUL_FITRI', 'CHRISTMAS', 'NYEPI', 'WAISAK')",
+            name="ck_thr_configs_unified_holiday",
+        ),
+        CheckConstraint("full_tenure_months >= 1", name="ck_thr_configs_full_tenure"),
+        CheckConstraint("min_tenure_months >= 0", name="ck_thr_configs_min_tenure"),
+    )
+
+
 class THRRecord(Base, TimestampMixin):
     """Tunjangan Hari Raya (THR) records per employee.
 
