@@ -3,6 +3,9 @@ Global exception handler middleware.
 Maps custom PayrollError exceptions to appropriate HTTP responses.
 """
 
+import logging
+import traceback
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -20,6 +23,19 @@ from app.exceptions import (
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all custom exception handlers on the FastAPI app instance."""
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        """Catch-all handler to log and return useful error details."""
+        logging.exception("Unhandled exception on %s", request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": type(exc).__name__,
+                "message": str(exc),
+                "traceback": traceback.format_exc().splitlines(),
+            },
+        )
 
     @app.exception_handler(PayrollValidationError)
     async def payroll_validation_error_handler(request: Request, exc: PayrollValidationError):
