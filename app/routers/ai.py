@@ -36,6 +36,7 @@ def get_settings(company_id: int = Query(...), db: Session = Depends(get_db)):
         system_prompt=setting.system_prompt,
         temperature=setting.temperature,
         max_tokens=setting.max_tokens,
+        timeout_seconds=setting.timeout_seconds,
         is_active=setting.is_active,
         created_at=setting.created_at,
         updated_at=setting.updated_at,
@@ -59,6 +60,7 @@ def create_settings(payload: AiSettingCreate, db: Session = Depends(get_db)):
         system_prompt=payload.system_prompt,
         temperature=payload.temperature,
         max_tokens=payload.max_tokens,
+        timeout_seconds=payload.timeout_seconds,
         is_active=payload.is_active,
     )
     db.add(setting)
@@ -71,7 +73,8 @@ def create_settings(payload: AiSettingCreate, db: Session = Depends(get_db)):
         api_key_masked=mask_api_key(setting.api_key),
         api_host=setting.api_host, model_name=setting.model_name,
         system_prompt=setting.system_prompt, temperature=setting.temperature,
-        max_tokens=setting.max_tokens, is_active=setting.is_active,
+        max_tokens=setting.max_tokens, timeout_seconds=setting.timeout_seconds,
+        is_active=setting.is_active,
         created_at=setting.created_at, updated_at=setting.updated_at,
     )
 
@@ -96,7 +99,8 @@ def update_settings(setting_id: int, payload: AiSettingUpdate, db: Session = Dep
         api_key_masked=mask_api_key(setting.api_key),
         api_host=setting.api_host, model_name=setting.model_name,
         system_prompt=setting.system_prompt, temperature=setting.temperature,
-        max_tokens=setting.max_tokens, is_active=setting.is_active,
+        max_tokens=setting.max_tokens, timeout_seconds=setting.timeout_seconds,
+        is_active=setting.is_active,
         created_at=setting.created_at, updated_at=setting.updated_at,
     )
 

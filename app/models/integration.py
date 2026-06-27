@@ -32,6 +32,7 @@ class AiSetting(Base, TimestampMixin):
     system_prompt = Column(Text, nullable=True)
     temperature = Column(Numeric(3, 2), default=0.7)
     max_tokens = Column(Integer, default=2048)
+    timeout_seconds = Column(Integer, default=9)
     is_active = Column(Boolean, default=False)
 
 

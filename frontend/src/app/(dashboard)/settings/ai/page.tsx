@@ -48,6 +48,7 @@ export default function AiSettingsPage() {
       system_prompt: settings.system_prompt || '',
       temperature: settings.temperature ?? 0.7,
       max_tokens: settings.max_tokens ?? 2048,
+      timeout_seconds: settings.timeout_seconds ?? 9,
       is_active: settings.is_active,
     };
   };

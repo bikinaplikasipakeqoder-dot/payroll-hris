@@ -9,12 +9,15 @@ Provides:
 - Context-aware prompt building for payroll/HR domain
 """
 
+import logging
 import time
 from typing import Optional
 
 import httpx
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.models.integration import AiSetting
 from app.models.payroll import PayrollRun
@@ -51,14 +54,30 @@ def mask_api_key(key: Optional[str]) -> Optional[str]:
     return "••••••" + key[-4:]
 
 
+def _normalize_api_host(api_host: Optional[str]) -> str:
+    """Normalize api_host so /chat/completions is appended correctly."""
+    if not api_host:
+        return ""
+    host = api_host.strip().rstrip("/")
+    return host
+
+
 def call_ai(settings: AiSetting, messages: list[dict], max_tokens: Optional[int] = None) -> dict:
     """
     Call the AI provider's chat completions endpoint (OpenAI-compatible).
 
     Uses httpx sync client to POST to {api_host}/chat/completions.
+    Timeout is configurable per setting (default 9s to fit Vercel Hobby limit).
     Raises appropriate HTTPExceptions on failure.
     """
-    url = f"{settings.api_host}/chat/completions"
+    host = _normalize_api_host(settings.api_host)
+    if not host:
+        raise HTTPException(
+            status_code=400,
+            detail="AI api_host is not configured.",
+        )
+
+    url = f"{host}/chat/completions"
     headers = {
         "Authorization": f"Bearer {settings.api_key}",
         "Content-Type": "application/json",
@@ -69,10 +88,24 @@ def call_ai(settings: AiSetting, messages: list[dict], max_tokens: Optional[int]
         "temperature": float(settings.temperature) if settings.temperature else 0.7,
         "max_tokens": max_tokens or settings.max_tokens or 2048,
     }
+    timeout = float(settings.timeout_seconds) if settings.timeout_seconds else 9.0
+    # Cap timeout to stay under Vercel Hobby serverless limit (10s).
+    timeout = min(timeout, 9.0)
+
+    logger.info(
+        "Calling AI provider: provider=%s model=%s url=%s timeout=%s messages=%s",
+        settings.provider_name,
+        settings.model_name,
+        url,
+        timeout,
+        len(messages),
+    )
 
     try:
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=timeout) as client:
             response = client.post(url, json=body, headers=headers)
+
+        logger.info("AI provider response status: %s", response.status_code)
 
         if response.status_code >= 400:
             try:
@@ -87,18 +120,22 @@ def call_ai(settings: AiSetting, messages: list[dict], max_tokens: Optional[int]
         return response.json()
 
     except httpx.TimeoutException:
+        logger.warning("AI provider request timed out after %s seconds", timeout)
         raise HTTPException(
             status_code=504,
-            detail="AI provider request timed out. Please try again later.",
+            detail=f"AI provider request timed out after {timeout} seconds. "
+                   "Try increasing timeout in AI settings or use a faster model.",
         )
-    except httpx.ConnectError:
+    except httpx.ConnectError as e:
+        logger.warning("Unable to connect to AI provider at %s: %s", url, e)
         raise HTTPException(
             status_code=502,
-            detail="Unable to connect to AI provider. Check api_host configuration.",
+            detail=f"Unable to connect to AI provider at {url}. Check api_host configuration.",
         )
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error calling AI provider")
         raise HTTPException(
             status_code=500,
             detail=f"Unexpected error calling AI provider: {str(e)}",

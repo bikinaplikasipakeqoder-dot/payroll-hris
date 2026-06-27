@@ -8,6 +8,7 @@ export const aiSettingsSchema = z.object({
   system_prompt: z.string().optional().or(z.literal('')),
   temperature: z.number().min(0).max(2),
   max_tokens: z.number().min(1).max(128000),
+  timeout_seconds: z.number().min(1).max(60).optional(),
   is_active: z.boolean(),
 });
 

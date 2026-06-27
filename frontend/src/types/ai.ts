@@ -8,6 +8,7 @@ export interface AiSetting {
   system_prompt: string | null;
   temperature: number | null;
   max_tokens: number | null;
+  timeout_seconds: number | null;
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;

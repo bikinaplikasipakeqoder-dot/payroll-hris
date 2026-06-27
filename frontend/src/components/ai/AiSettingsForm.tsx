@@ -53,6 +53,7 @@ export default function AiSettingsForm({
       system_prompt: '',
       temperature: 0.7,
       max_tokens: 2048,
+      timeout_seconds: 9,
       is_active: true,
       ...defaultValues,
     },
@@ -223,6 +224,21 @@ export default function AiSettingsForm({
               error={errors.max_tokens?.message}
               placeholder="2048"
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Timeout (detik)"
+              type="number"
+              {...register('timeout_seconds', { valueAsNumber: true })}
+              error={errors.timeout_seconds?.message}
+              placeholder="9"
+            />
+            <div className="flex items-end">
+              <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
+                Maksimal 9 detik untuk plan Vercel gratis agar tidak diputus server.
+              </p>
+            </div>
           </div>
         </div>
 

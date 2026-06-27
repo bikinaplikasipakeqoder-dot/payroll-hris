@@ -23,6 +23,7 @@ class AiSettingCreate(BaseSchema):
     system_prompt: Optional[str] = None
     temperature: Optional[Decimal] = Field(default=Decimal("0.70"), ge=0, le=2)
     max_tokens: Optional[int] = Field(default=2048, ge=1, le=128000)
+    timeout_seconds: Optional[int] = Field(default=9, ge=1, le=60)
     is_active: bool = True
 
 
@@ -35,6 +36,7 @@ class AiSettingUpdate(BaseSchema):
     system_prompt: Optional[str] = None
     temperature: Optional[Decimal] = Field(None, ge=0, le=2)
     max_tokens: Optional[int] = Field(None, ge=1, le=128000)
+    timeout_seconds: Optional[int] = Field(None, ge=1, le=60)
     is_active: Optional[bool] = None
 
 
@@ -49,6 +51,7 @@ class AiSettingResponse(BaseSchema):
     system_prompt: Optional[str] = None
     temperature: Optional[Decimal] = None
     max_tokens: Optional[int] = None
+    timeout_seconds: Optional[int] = None
     is_active: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
