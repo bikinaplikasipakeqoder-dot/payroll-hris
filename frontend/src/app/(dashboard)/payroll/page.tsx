@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Eye, Check, Play, AlertTriangle, RefreshCw, X, Loader2 } from 'lucide-react';
+import { Plus, Eye, Check, Play, AlertTriangle, RefreshCw, X, Loader2, Users } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { formatIDR, getMonthName } from '@/lib/utils';
 import Button from '@/components/ui/Button';
@@ -83,12 +83,31 @@ export default function PayrollPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [eligibleCount, setEligibleCount] = useState<number | null>(null);
   const [createForm, setCreateForm] = useState({
     payroll_period: `${CURRENT_YEAR}-${String(CURRENT_MONTH).padStart(2, '0')}`,
     payroll_method: '',
     tax_method: 'PASAL_17',
     notes: '',
   });
+
+  const fetchEligibleCount = async (period: string) => {
+    const [year, month] = period.split('-').map(Number);
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const end = new Date(year, month, 0).toISOString().split('T')[0];
+    try {
+      const count = await api.get<number>(
+        `/api/v1/payroll/preview/eligible-count?company_id=1&period_start=${start}&period_end=${end}`
+      );
+      setEligibleCount(count);
+    } catch {
+      setEligibleCount(null);
+    }
+  };
+
+  useEffect(() => {
+    fetchEligibleCount(createForm.payroll_period);
+  }, []);
 
   const fetchRuns = async () => {
     setLoading(true);
@@ -209,7 +228,7 @@ export default function PayrollPage() {
             Kelola proses payroll perusahaan
           </p>
         </div>
-        <Button onClick={() => { setShowCreateModal(true); setCreateError(null); }}>
+        <Button onClick={() => { setShowCreateModal(true); setCreateError(null); fetchEligibleCount(createForm.payroll_period); }}>
           <Plus className="w-4 h-4 mr-2" />
           Buat Payroll Baru
         </Button>
@@ -394,7 +413,11 @@ export default function PayrollPage() {
                 <input
                   type="text"
                   value={createForm.payroll_period}
-                  onChange={(e) => setCreateForm({ ...createForm, payroll_period: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCreateForm({ ...createForm, payroll_period: v });
+                    if (/^\d{4}-\d{2}$/.test(v)) fetchEligibleCount(v);
+                  }}
                   placeholder="YYYY-MM"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
@@ -436,6 +459,20 @@ export default function PayrollPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
+
+              {eligibleCount !== null && (
+                <div className="flex items-center gap-2 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                  <Users className="w-4 h-4 text-primary-600" />
+                  <div>
+                    <p className="text-sm font-medium text-primary-800">
+                      {eligibleCount} karyawan eligible
+                    </p>
+                    <p className="text-xs text-primary-700">
+                      Hanya karyawan dengan tanggal masuk ≤ tanggal 15 bulan ini yang akan diproses
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {createError && (

@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
+from datetime import date
+
 from app.database import get_db
 from app.exceptions import (
     DuplicatePayrollRunError,
@@ -23,8 +25,29 @@ from app.schemas.payroll import (
     PayslipResponse,
 )
 from app.services.payroll_service import PayrollService
+from app.services.employee_loader import EmployeeLoader
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
+
+
+@router.get(
+    "/preview/eligible-count",
+    response_model=int,
+    summary="Preview eligible employee count for a period",
+)
+def preview_eligible_count(
+    company_id: int = Query(..., description="Company ID"),
+    period_start: date = Query(..., description="Period start date"),
+    period_end: date = Query(..., description="Period end date"),
+    db: Session = Depends(get_db),
+):
+    """Return how many active employees joined on/before the 15th of the period month."""
+    return EmployeeLoader.count_eligible(
+        company_id=company_id,
+        period_start=period_start,
+        period_end=period_end,
+        session=db,
+    )
 
 
 class ApprovalRequest(BaseModel):

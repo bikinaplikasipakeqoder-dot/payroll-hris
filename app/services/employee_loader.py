@@ -43,6 +43,11 @@ class EmployeeLoader:
     """Loads all active employees with their compensation data."""
 
     @staticmethod
+    def _cutoff_date(period_start: date) -> date:
+        """Cutoff: employees who joined on or before the 15th of the period month are paid."""
+        return date(period_start.year, period_start.month, 15)
+
+    @staticmethod
     def load_all(
         company_id: int,
         period_start: date,
@@ -52,11 +57,14 @@ class EmployeeLoader:
         """Load all active employees with allowances, bonuses, and kasbon.
 
         Uses eager loading to minimize database queries.
+        Only employees whose date_joined <= 15th of the period month are included.
         """
+        cutoff = EmployeeLoader._cutoff_date(period_start)
         # Query active employees with eager-loaded allowances
         employees = session.query(Employee).filter(
             Employee.company_id == company_id,
             Employee.is_active == True,
+            Employee.date_joined <= cutoff,
         ).options(
             selectinload(Employee.employee_allowances).selectinload(
                 EmployeeAllowance.allowance_type
@@ -262,3 +270,18 @@ class EmployeeLoader:
             ))
 
         return result
+
+    @staticmethod
+    def count_eligible(
+        company_id: int,
+        period_start: date,
+        period_end: date,
+        session: Session,
+    ) -> int:
+        """Return the number of active employees eligible for payroll in a period."""
+        cutoff = EmployeeLoader._cutoff_date(period_start)
+        return session.query(Employee).filter(
+            Employee.company_id == company_id,
+            Employee.is_active == True,
+            Employee.date_joined <= cutoff,
+        ).count()
