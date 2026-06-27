@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, RefreshCw, Eye, Search, FileText } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { PaginatedResponse } from '@/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
@@ -60,10 +61,10 @@ export default function PayslipManagementPage() {
         setRecords(data);
       } catch {
         // Fallback: build list from employees
-        const employees = await api.get<Employee[]>(
+        const employees = await api.get<PaginatedResponse<Employee>>(
           `/api/v1/employees?company_id=1&skip=0&limit=300`
         );
-        const mapped: PayslipRecord[] = employees.map((emp) => ({
+        const mapped: PayslipRecord[] = employees.items.map((emp) => ({
           employee_id: emp.id,
           employee_code: emp.employee_code,
           full_name: emp.full_name,

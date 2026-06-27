@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from decimal import Decimal
@@ -17,7 +18,12 @@ from app.models.company_entity import Entity, UmpSetting
 from app.models.employee import Employee
 from app.models.payroll import Payslip
 from app.models.salary import AllowanceType, EmployeeAllowance, EmployeeSalaryHistory
-from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.schemas.employee import (
+    EmployeeCreate,
+    EmployeeResponse,
+    EmployeeUpdate,
+    EmployeeListResponse,
+)
 from app.schemas.payroll import PayslipResponse
 from app.schemas.salary import (
     EmployeeAllowanceCreate,
@@ -76,6 +82,48 @@ def _attach_current_base_salary(employee: Employee, db: Session) -> None:
     record = _get_latest_base_salary(db, employee.id)
     employee.base_salary = record.base_salary if record else None
     employee.base_salary_effective_date = record.effective_date if record else None
+
+
+def _attach_current_base_salary_batch(employees: List[Employee], db: Session) -> None:
+    """Attach current base salary for a list of employees using a single query."""
+    if not employees:
+        return
+
+    employee_ids = [emp.id for emp in employees]
+
+    # Subquery: latest effective_date per employee among active records.
+    latest_subq = (
+        db.query(
+            EmployeeSalaryHistory.employee_id,
+            func.max(EmployeeSalaryHistory.effective_date).label("max_date"),
+        )
+        .filter(
+            EmployeeSalaryHistory.employee_id.in_(employee_ids),
+            EmployeeSalaryHistory.is_active == True,
+        )
+        .group_by(EmployeeSalaryHistory.employee_id)
+        .subquery()
+    )
+
+    # Fetch the actual records matching the latest effective_date.
+    latest_records = (
+        db.query(EmployeeSalaryHistory)
+        .join(
+            latest_subq,
+            and_(
+                EmployeeSalaryHistory.employee_id == latest_subq.c.employee_id,
+                EmployeeSalaryHistory.effective_date == latest_subq.c.max_date,
+            ),
+        )
+        .filter(EmployeeSalaryHistory.is_active == True)
+        .all()
+    )
+
+    salary_map = {record.employee_id: record for record in latest_records}
+    for emp in employees:
+        record = salary_map.get(emp.id)
+        emp.base_salary = record.base_salary if record else None
+        emp.base_salary_effective_date = record.effective_date if record else None
 
 
 def _set_base_salary(
@@ -170,29 +218,48 @@ def _validate_ump(
 
 @router.get(
     "",
-    response_model=List[EmployeeResponse],
+    response_model=EmployeeListResponse,
     summary="List employees",
 )
 def list_employees(
     company_id: int = Query(..., description="Company ID"),
     department_id: Optional[int] = Query(None, description="Filter by department"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    search: Optional[str] = Query(None, description="Search by full name or employee code"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    """List employees with optional filters and pagination."""
+    """List employees with optional filters, search, and pagination."""
     query = db.query(Employee).filter(Employee.company_id == company_id)
 
     if department_id is not None:
         query = query.filter(Employee.department_id == department_id)
     if is_active is not None:
         query = query.filter(Employee.is_active == is_active)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            (Employee.full_name.ilike(pattern))
+            | (Employee.employee_code.ilike(pattern))
+            | (Employee.first_name.ilike(pattern))
+            | (Employee.last_name.ilike(pattern))
+        )
 
+    total = query.count()
     employees = query.offset(skip).limit(limit).all()
-    for emp in employees:
-        _attach_current_base_salary(emp, db)
-    return employees
+
+    # Batch-load the latest active base salary for all returned employees
+    # in a single query to avoid N+1 round trips to Turso.
+    _attach_current_base_salary_batch(employees, db)
+
+    return EmployeeListResponse(
+        items=employees,
+        total=total,
+        page=skip // limit,
+        page_size=limit,
+        total_pages=max(1, (total + limit - 1) // limit) if total > 0 else 1,
+    )
 
 
 @router.post(

@@ -179,3 +179,13 @@ export interface RuleAuditLog {
   changed_at: string;
   reason: string | null;
 }
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export type EmployeeListResponse = PaginatedResponse<Employee>;

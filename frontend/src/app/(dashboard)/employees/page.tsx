@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Search, Download, Upload, FileDown, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { Employee } from '@/types';
+import { EmployeeListResponse } from '@/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
@@ -16,7 +16,9 @@ const PAGE_SIZE = 20;
 
 export default function EmployeesPage() {
   const router = useRouter();
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeListResponse['items']>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEmployees, setTotalEmployees] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -29,14 +31,18 @@ export default function EmployeesPage() {
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (currentPage = page, currentSearch = search) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<Employee[]>(
-        `/api/v1/employees?company_id=1&skip=0&limit=100`
+      const skip = currentPage * PAGE_SIZE;
+      const searchParam = currentSearch ? `&search=${encodeURIComponent(currentSearch)}` : '';
+      const data = await api.get<EmployeeListResponse>(
+        `/api/v1/employees?company_id=1&skip=${skip}&limit=${PAGE_SIZE}${searchParam}`
       );
-      setEmployees(data);
+      setEmployees(data.items);
+      setTotalEmployees(data.total);
+      setTotalPages(data.total_pages);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -49,30 +55,16 @@ export default function EmployeesPage() {
   };
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  const filteredEmployees = useMemo(() => {
-    if (!search.trim()) return employees;
-    const query = search.toLowerCase();
-    return employees.filter(
-      (emp) =>
-        emp.full_name.toLowerCase().includes(query) ||
-        emp.employee_code.toLowerCase().includes(query)
-    );
-  }, [employees, search]);
-
-  const totalFiltered = filteredEmployees.length;
-  const paginatedEmployees = filteredEmployees.slice(
-    page * PAGE_SIZE,
-    (page + 1) * PAGE_SIZE
-  );
-  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
-
-  // Reset page when search changes
-  useEffect(() => {
-    setPage(0);
+    fetchEmployees(0, search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  useEffect(() => {
+    fetchEmployees(page, search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  const paginatedEmployees = employees;
 
   const handleExport = async () => {
     try {
@@ -192,7 +184,7 @@ export default function EmployeesPage() {
       ) : error ? (
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">{error}</p>
-          <Button variant="secondary" onClick={fetchEmployees}>
+          <Button variant="secondary" onClick={() => fetchEmployees()}>
             Coba Lagi
           </Button>
         </div>
@@ -204,12 +196,12 @@ export default function EmployeesPage() {
           />
 
           {/* Pagination */}
-          {totalFiltered > 0 && (
+          {totalEmployees > 0 && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600">
                 Menampilkan {page * PAGE_SIZE + 1}–
-                {Math.min((page + 1) * PAGE_SIZE, totalFiltered)} dari{' '}
-                {totalFiltered}
+                {Math.min((page + 1) * PAGE_SIZE, totalEmployees)} dari{' '}
+                {totalEmployees}
               </p>
               <div className="flex gap-2">
                 <Button

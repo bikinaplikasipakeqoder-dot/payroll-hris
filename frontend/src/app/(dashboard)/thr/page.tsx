@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
+import { PaginatedResponse } from '@/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -95,10 +96,10 @@ export default function THRPage() {
     try {
       const [recordsData, empData] = await Promise.all([
         api.get<THRRecord[]>(`/api/v1/thr?company_id=1&thr_year=${selectedYear}&religious_holiday=${selectedHoliday}`),
-        api.get<Employee[]>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
+        api.get<PaginatedResponse<Employee>>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
       ]);
       setRecords(recordsData);
-      setEmployees(empData);
+      setEmployees(empData.items);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

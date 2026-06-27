@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { formatIDR, getMonthName } from '@/lib/utils';
+import { PaginatedResponse } from '@/types';
 import Button from '@/components/ui/Button';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -97,11 +98,11 @@ export default function PayrollDetailPage() {
       const [runData, payslipData, employeeData] = await Promise.all([
         api.get<PayrollRun>(`/api/v1/payroll/runs/${runId}`),
         api.get<Payslip[]>(`/api/v1/payroll/runs/${runId}/payslips?limit=1000`),
-        api.get<Employee[]>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
+        api.get<PaginatedResponse<Employee>>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
       ]);
       setRun(runData);
       setPayslips(payslipData);
-      setEmployees(employeeData);
+      setEmployees(employeeData.items);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

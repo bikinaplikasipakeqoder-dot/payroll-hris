@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { formatIDR } from '@/lib/utils';
+import { PaginatedResponse } from '@/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -111,11 +112,11 @@ export default function BonusesPage() {
     try {
       const [typesData, empData, bonusData] = await Promise.all([
         api.get<BonusType[]>('/api/v1/bonuses/types?company_id=1'),
-        api.get<Employee[]>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
+        api.get<PaginatedResponse<Employee>>('/api/v1/employees?company_id=1&skip=0&limit=1000'),
         api.get<Bonus[]>('/api/v1/bonuses?company_id=1'),
       ]);
       setBonusTypes(typesData);
-      setEmployees(empData);
+      setEmployees(empData.items);
       setBonuses(bonusData);
     } catch (err) {
       if (err instanceof ApiError) {
