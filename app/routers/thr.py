@@ -2,7 +2,7 @@
 Tunjangan Hari Raya (THR) API endpoints.
 """
 
-from typing import List
+from typing import List, Optional
 from datetime import date
 from decimal import Decimal
 
@@ -66,7 +66,7 @@ HOLIDAY_TO_RELIGION = {
 }
 
 
-def _religion_matches_holiday(religion: str | None, holiday: str) -> bool:
+def _religion_matches_holiday(religion: Optional[str], holiday: str) -> bool:
     """Check whether an employee religion matches a religious holiday."""
     if not religion:
         return False
