@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { Entity } from '@/types';
+import { Entity, UmpSetting } from '@/types';
 
 interface FormData {
   code: string;
@@ -30,6 +30,7 @@ const EMPTY_FORM: FormData = {
 
 export default function EntitiesSettingsPage() {
   const [data, setData] = useState<Entity[]>([]);
+  const [umpSettings, setUmpSettings] = useState<UmpSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,8 +44,12 @@ export default function EntitiesSettingsPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.get<Entity[]>('/api/v1/companies/1/entities');
+      const [result, ump] = await Promise.all([
+        api.get<Entity[]>('/api/v1/companies/1/entities'),
+        api.get<UmpSetting[]>('/api/v1/companies/1/ump-settings'),
+      ]);
       setData(result);
+      setUmpSettings(ump);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal memuat data entitas');
       setData([]);
@@ -250,12 +255,17 @@ export default function EntitiesSettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Provinsi</label>
-                  <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Provinsi *</label>
+                  <select
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                     value={formData.province}
                     onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                  />
+                  >
+                    <option value="">{umpSettings.length ? 'Pilih Provinsi' : 'Belum ada data UMP'}</option>
+                    {Array.from(new Set(umpSettings.map((u) => u.province))).map((prov) => (
+                      <option key={prov} value={prov}>{prov}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -292,7 +302,7 @@ export default function EntitiesSettingsPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || !formData.code || !formData.name}
+                disabled={saving || !formData.code || !formData.name || !formData.province}
                 className="px-4 py-2 text-sm font-medium bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}

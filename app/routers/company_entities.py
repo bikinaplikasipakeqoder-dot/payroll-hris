@@ -17,6 +17,30 @@ from app.schemas.company_entity import (
 router = APIRouter(prefix="/companies", tags=["Companies & Entities"])
 
 
+def _validate_entity_province(db: Session, company_id: int, province: Optional[str]) -> None:
+    """Ensure the entity province exists in UMP settings."""
+    if not province:
+        return
+
+    ump_exists = (
+        db.query(UmpSetting)
+        .filter(
+            UmpSetting.company_id == company_id,
+            UmpSetting.province.ilike(province.strip()),
+            UmpSetting.is_active == True,
+        )
+        .first()
+    )
+    if not ump_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "UmpProvinceNotFound",
+                "message": f"Provinsi '{province}' belum terdaftar di master UMP. Tambahkan UMP untuk provinsi tersebut terlebih dahulu.",
+            },
+        )
+
+
 # ─── Entities ───────────────────────────────────────────────────────────────
 
 
@@ -58,6 +82,8 @@ def create_entity(company_id: int, payload: EntityCreate, db: Session = Depends(
                 "message": f"Entity code '{payload.code}' already exists for this company",
             },
         )
+
+    _validate_entity_province(db, company_id, payload.province)
 
     entity = Entity(company_id=company_id, **payload.model_dump())
     db.add(entity)
@@ -112,6 +138,8 @@ def update_entity(
     update_data = payload.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(entity, field, value)
+
+    _validate_entity_province(db, company_id, entity.province)
 
     db.commit()
     db.refresh(entity)
