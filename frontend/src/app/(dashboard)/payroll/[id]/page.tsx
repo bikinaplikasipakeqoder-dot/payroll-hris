@@ -9,6 +9,8 @@ import {
   RefreshCw,
   Check,
   FileText,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { formatIDR, getMonthName } from '@/lib/utils';
@@ -60,6 +62,16 @@ interface Payslip {
   sick_days: number;
   leave_days: number;
   is_approved: boolean;
+  lines: PayslipLine[];
+}
+
+interface PayslipLine {
+  id: number;
+  line_type: 'EARNING' | 'DEDUCTION' | 'TAX' | 'BPJS' | 'NET';
+  category: string | null;
+  description: string;
+  amount: number;
+  sort_order: number;
 }
 
 interface Employee {
@@ -97,6 +109,7 @@ export default function PayrollDetailPage() {
     message: '',
   });
   const [processError, setProcessError] = useState<string | null>(null);
+  const [expandedPayslipId, setExpandedPayslipId] = useState<number | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -154,6 +167,10 @@ export default function PayrollDetailPage() {
     } finally {
       setApproving(false);
     }
+  };
+
+  const toggleExpanded = (payslipId: number) => {
+    setExpandedPayslipId((current) => (current === payslipId ? null : payslipId));
   };
 
   const getEmployeeName = (employeeId: number) => {
@@ -269,30 +286,58 @@ export default function PayrollDetailPage() {
                   </td>
                 </tr>
               ) : (
-                payslips.map((payslip) => (
-                  <tr key={payslip.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{getEmployeeName(payslip.employee_id)}</div>
-                      <div className="text-xs text-gray-500">{payslip.payslip_number}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.basic_salary)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.total_allowances)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.overtime_amount)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.bonus_amount)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.gross_salary)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.total_deductions)}</td>
-                    <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">{formatIDR(payslip.net_salary)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => router.push(`/payslips/${run.payroll_period}?payslip_id=${payslip.id}`)}
-                        className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                        title="Lihat Slip Gaji"
+                payslips.map((payslip) => {
+                  const isExpanded = expandedPayslipId === payslip.id;
+                  return (
+                    <>
+                      <tr
+                        key={payslip.id}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => toggleExpanded(payslip.id)}
                       >
-                        <FileText className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-gray-400" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-gray-400" />
+                            )}
+                            <div>
+                              <div className="font-medium text-gray-900">{getEmployeeName(payslip.employee_id)}</div>
+                              <div className="text-xs text-gray-500">{payslip.payslip_number}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.basic_salary)}</td>
+                        <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.total_allowances)}</td>
+                        <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.overtime_amount)}</td>
+                        <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.bonus_amount)}</td>
+                        <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.gross_salary)}</td>
+                        <td className="px-4 py-3 text-right font-mono">{formatIDR(payslip.total_deductions)}</td>
+                        <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700">{formatIDR(payslip.net_salary)}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/payslips/${run.payroll_period}?payslip_id=${payslip.id}`);
+                            }}
+                            className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                            title="Lihat Slip Gaji"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={9} className="bg-slate-50 px-4 py-4">
+                            <PayslipBreakdown payslip={payslip} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -337,6 +382,107 @@ export default function PayrollDetailPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Reusable Summary Card ───────────────────────────────────────────────────
+
+function PayslipBreakdown({ payslip }: { payslip: Payslip }) {
+  const lines = payslip.lines || [];
+
+  const earnings = lines.filter((l) => l.line_type === 'EARNING');
+  const employeeBpjs = lines.filter(
+    (l) => l.line_type === 'BPJS' && !l.category?.startsWith('EMPLOYER_') && l.category !== 'JKK' && l.category !== 'JKM'
+  );
+  const employerBpjs = lines.filter(
+    (l) => l.line_type === 'BPJS' && (l.category?.startsWith('EMPLOYER_') || l.category === 'JKK' || l.category === 'JKM')
+  );
+  const taxes = lines.filter((l) => l.line_type === 'TAX');
+  const deductions = lines.filter((l) => l.line_type === 'DEDUCTION');
+  const netLine = lines.find((l) => l.line_type === 'NET');
+
+  const sum = (items: PayslipLine[]) => items.reduce((acc, item) => acc + Number(item.amount), 0);
+
+  const renderRows = (items: PayslipLine[], negative = false) =>
+    items.map((item) => (
+      <div key={item.id} className="flex justify-between py-1 text-sm">
+        <span className="text-slate-600">{item.description}</span>
+        <span className={`font-mono ${negative ? 'text-red-600' : 'text-slate-800'}`}>
+          {negative ? '-' : ''}{formatIDR(item.amount)}
+        </span>
+      </div>
+    ));
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Left: Earnings */}
+      <div className="space-y-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <h4 className="font-semibold text-slate-800 mb-3">Pendapatan</h4>
+          {renderRows(earnings)}
+          <div className="border-t border-slate-200 mt-3 pt-3 flex justify-between font-semibold text-slate-900">
+            <span>Bruto</span>
+            <span className="font-mono">{formatIDR(payslip.gross_salary)}</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <h4 className="font-semibold text-slate-800 mb-3">Informasi Kehadiran</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <InfoRow label="Hari Kerja" value={String(payslip.working_days)} />
+            <InfoRow label="Jam Lembur" value={String(payslip.overtime_hours)} />
+            <InfoRow label="Menit Terlambat" value={String(payslip.late_minutes)} />
+            <InfoRow label="Hari Sakit" value={String(payslip.sick_days)} />
+            <InfoRow label="Hari Cuti" value={String(payslip.leave_days)} />
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Deductions */}
+      <div className="space-y-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <h4 className="font-semibold text-slate-800 mb-3">BPJS (Pemotongan Karyawan)</h4>
+          {employeeBpjs.length > 0 ? renderRows(employeeBpjs, true) : (
+            <p className="text-sm text-slate-500">Tidak ada pemotongan BPJS.</p>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <h4 className="font-semibold text-slate-800 mb-3">BPJS (Tanggungan Perusahaan)</h4>
+          {employerBpjs.length > 0 ? renderRows(employerBpjs) : (
+            <p className="text-sm text-slate-500">Tidak ada data BPJS perusahaan.</p>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <h4 className="font-semibold text-slate-800 mb-3">Pajak & Potongan Lainnya</h4>
+          {renderRows(taxes, true)}
+          {renderRows(deductions, true)}
+          <div className="border-t border-slate-200 mt-3 pt-3 flex justify-between font-semibold text-red-600">
+            <span>Total Potongan</span>
+            <span className="font-mono">-{formatIDR(payslip.total_deductions)}</span>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4">
+          <div className="flex justify-between items-center">
+            <span className="font-semibold text-emerald-900">Take Home Pay</span>
+            <span className="font-mono font-bold text-emerald-700 text-lg">
+              {formatIDR(netLine ? netLine.amount : payslip.net_salary)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-slate-500">{label}</span>
+      <span className="font-medium text-slate-800">{value}</span>
     </div>
   );
 }

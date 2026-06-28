@@ -277,7 +277,7 @@ def approve_payroll_run(
 
 @router.get(
     "/runs/{run_id}/payslips",
-    response_model=List[PayslipResponse],
+    response_model=List[PayslipDetailResponse],
     summary="List payslips for a payroll run",
 )
 def list_payslips_for_run(
@@ -286,7 +286,7 @@ def list_payslips_for_run(
     limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
-    """List all payslips belonging to a specific payroll run."""
+    """List all payslips belonging to a specific payroll run, including line items."""
     # Verify run exists
     payroll_run = db.query(PayrollRun).filter(PayrollRun.id == run_id).first()
     if not payroll_run:
@@ -296,6 +296,7 @@ def list_payslips_for_run(
         )
     payslips = (
         db.query(Payslip)
+        .options(selectinload(Payslip.lines))
         .filter(Payslip.payroll_run_id == run_id)
         .offset(skip)
         .limit(limit)

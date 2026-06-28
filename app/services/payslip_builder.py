@@ -206,7 +206,7 @@ class PayslipBuilder:
             lines.append(PayslipLine(
                 line_type="BPJS",
                 category="KESEHATAN",
-                description="BPJS Kesehatan",
+                description="BPJS Kesehatan (Pemotongan Karyawan)",
                 amount=bpjs_result.kes_employee,
                 sort_order=sort_order,
             ))
@@ -216,7 +216,7 @@ class PayslipBuilder:
             lines.append(PayslipLine(
                 line_type="BPJS",
                 category="JHT",
-                description="BPJS JHT",
+                description="BPJS JHT (Pemotongan Karyawan)",
                 amount=bpjs_result.jht_employee,
                 sort_order=sort_order,
             ))
@@ -226,8 +226,60 @@ class PayslipBuilder:
             lines.append(PayslipLine(
                 line_type="BPJS",
                 category="JP",
-                description="BPJS JP",
+                description="BPJS JP (Pemotongan Karyawan)",
                 amount=bpjs_result.jp_employee,
+                sort_order=sort_order,
+            ))
+            sort_order += 1
+
+        # --- BPJS (employer portions, informational) ---
+        sort_order = 110
+        if bpjs_result.kes_employer > Decimal("0"):
+            lines.append(PayslipLine(
+                line_type="BPJS",
+                category="EMPLOYER_KESEHATAN",
+                description="BPJS Kesehatan (Tanggungan Perusahaan)",
+                amount=bpjs_result.kes_employer,
+                sort_order=sort_order,
+            ))
+            sort_order += 1
+
+        if bpjs_result.jht_employer > Decimal("0"):
+            lines.append(PayslipLine(
+                line_type="BPJS",
+                category="EMPLOYER_JHT",
+                description="BPJS JHT (Tanggungan Perusahaan)",
+                amount=bpjs_result.jht_employer,
+                sort_order=sort_order,
+            ))
+            sort_order += 1
+
+        if bpjs_result.jp_employer > Decimal("0"):
+            lines.append(PayslipLine(
+                line_type="BPJS",
+                category="EMPLOYER_JP",
+                description="BPJS JP (Tanggungan Perusahaan)",
+                amount=bpjs_result.jp_employer,
+                sort_order=sort_order,
+            ))
+            sort_order += 1
+
+        if bpjs_result.jkk_employer > Decimal("0"):
+            lines.append(PayslipLine(
+                line_type="BPJS",
+                category="JKK",
+                description="BPJS JKK (Tanggungan Perusahaan)",
+                amount=bpjs_result.jkk_employer,
+                sort_order=sort_order,
+            ))
+            sort_order += 1
+
+        if bpjs_result.jkm_employer > Decimal("0"):
+            lines.append(PayslipLine(
+                line_type="BPJS",
+                category="JKM",
+                description="BPJS JKM (Tanggungan Perusahaan)",
+                amount=bpjs_result.jkm_employer,
                 sort_order=sort_order,
             ))
             sort_order += 1
