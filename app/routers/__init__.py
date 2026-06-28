@@ -20,6 +20,7 @@ from app.routers.kasbon import router as kasbon_router
 from app.routers.thr import router as thr_router
 from app.routers.company_entities import router as company_entities_router
 from app.routers.rules import router as rules_router
+from app.routers.dashboard import router as dashboard_router
 
 __all__ = [
     "payroll_router",
@@ -40,4 +41,5 @@ __all__ = [
     "thr_router",
     "company_entities_router",
     "rules_router",
+    "dashboard_router",
 ]

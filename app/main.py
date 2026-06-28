@@ -26,6 +26,7 @@ from app.routers import (
     thr_router,
     company_entities_router,
     rules_router,
+    dashboard_router,
 )
 from app.middleware.error_handler import register_exception_handlers
 
@@ -66,6 +67,7 @@ app.include_router(kasbon_router, prefix="/api/v1")
 app.include_router(thr_router, prefix="/api/v1")
 app.include_router(company_entities_router, prefix="/api/v1")
 app.include_router(rules_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 
 
 @app.on_event("startup")
