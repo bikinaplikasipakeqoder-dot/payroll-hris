@@ -50,11 +50,16 @@ def get_dashboard_stats(
         PayrollRun.status.in_(["DRAFT", "PROCESSING", "COMPLETED"]),
     ).count()
 
-    # Pending overtime approvals
-    pending_overtime = db.query(OvertimeRecord).filter(
-        OvertimeRecord.company_id == company_id,
-        OvertimeRecord.approval_status == "PENDING",
-    ).count()
+    # Pending overtime approvals (join via employee)
+    pending_overtime = (
+        db.query(OvertimeRecord)
+        .join(Employee, OvertimeRecord.employee_id == Employee.id)
+        .filter(
+            Employee.company_id == company_id,
+            OvertimeRecord.approval_status == "PENDING",
+        )
+        .count()
+    )
 
     # Monthly payroll trend (last 6 completed runs)
     payroll_runs = (
